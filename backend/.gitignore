@@ -1,0 +1,12 @@
+# Binaries
+*.exe
+*.exe~
+bin/
+
+# Go build artifacts  
+*.out
+tmp/
+
+# Environment
+.env
+*.env.local
