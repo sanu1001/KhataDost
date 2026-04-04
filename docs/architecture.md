@@ -1,64 +1,56 @@
 # KhataDost — Architecture
 
-This document covers the system design, folder structure, data flow, and key architectural decisions behind KhataDost.
-
 ---
 
-## System Overview
+## Overview
 
-KhataDost is split into two independent projects inside a monorepo:
+KhataDost is a monorepo containing two independent projects:
 
-- **`/app`** — Flutter mobile client (`mac` internally)
-- **`/backend`** — Go REST API (`mas` internally)
+- **`/app`** — Flutter mobile client
+- **`/backend`** — Go REST API
 
-They communicate over HTTP. The mobile app holds no business logic — all validation, computation, and persistence lives in the backend. The app's only job is to present data and dispatch user actions.
+They communicate over HTTP. The app holds no business logic — all validation, computation, and persistence lives in the backend. The app's job is to present data and dispatch user intent.
 
 ---
 
 ## Mobile Client (`/app`)
 
-### Pattern: Feature-first Clean Architecture + BLoC
+### Pattern: Feature-first Clean Architecture + Pure BLoC
 
-The app is organised by **feature**, not by layer. Every feature is self-contained with its own data, domain, and presentation layers. Nothing leaks across feature boundaries except through `core/`.
+The app is organised by feature. Each feature is self-contained with its own data, domain, and presentation layers. Nothing leaks across feature boundaries except through `core/`.
 
 ```
 lib/
-├── main.dart                       ← BlocProviders (global) + runApp
-├── app.dart                        ← MaterialApp.router + GoRouter
+├── main.dart                          ← global BlocProviders + runApp
+├── app.dart                           ← MaterialApp.router + GoRouter init
 │
 ├── core/
 │   ├── constants/
-│   │   ├── api_constants.dart      ← base URL + all endpoint paths
+│   │   ├── api_constants.dart         ← base URL + all endpoint paths
 │   │   └── app_constants.dart
 │   ├── di/
-│   │   └── injection.dart          ← GetIt: registers all blocs, repos, datasources
+│   │   └── injection.dart             ← GetIt: all blocs, repos, datasources
 │   ├── errors/
-│   │   ├── failures.dart           ← ServerFailure, NetworkFailure, AuthFailure
+│   │   ├── failures.dart              ← ServerFailure, NetworkFailure, AuthFailure
 │   │   └── exceptions.dart
 │   ├── network/
-│   │   ├── dio_client.dart         ← Dio singleton with base config
+│   │   ├── dio_client.dart            ← Dio singleton
 │   │   └── interceptors/
-│   │       ├── auth_interceptor.dart   ← attaches JWT to every request
-│   │       └── error_interceptor.dart  ← maps 401 → logout, 4xx/5xx → Failure
+│   │       ├── auth_interceptor.dart  ← attach JWT to every request
+│   │       └── error_interceptor.dart ← 401 → logout, 5xx → Failure
 │   ├── router/
-│   │   └── app_router.dart         ← GoRouter config + redirect guard
+│   │   └── app_router.dart            ← GoRouter config + redirect guard
 │   ├── storage/
-│   │   └── secure_storage.dart     ← flutter_secure_storage wrapper
+│   │   └── secure_storage.dart        ← flutter_secure_storage wrapper
 │   ├── theme/
-│   │   ├── app_theme.dart
-│   │   └── app_colors.dart
-│   └── widgets/                    ← shared across all features
-│       ├── app_button.dart
-│       ├── app_text_field.dart
-│       └── loading_overlay.dart
+│   └── widgets/                       ← shared: AppButton, AppTextField, etc.
 │
 └── features/
     ├── auth/
     ├── dashboard/
     ├── inventory/
-    ├── customers/
     ├── billing/
-    ├── khata/
+    ├── customers/
     └── settings/
 ```
 
@@ -67,50 +59,72 @@ lib/
 ```
 feature_name/
 ├── data/
-│   ├── models/             ← freezed DTOs with fromJson/toJson
-│   ├── datasources/        ← RemoteDatasource: raw Dio calls, returns models
-│   └── repositories/       ← RepositoryImpl: implements domain abstract, handles errors
+│   ├── models/             ← freezed DTOs (fromJson / toJson)
+│   ├── datasources/        ← RemoteDatasource: Dio calls, returns models
+│   └── repositories/       ← RepositoryImpl: maps models → entities, handles errors
 ├── domain/
-│   ├── entities/           ← pure Dart classes, no serialization
-│   └── repositories/       ← abstract class — the contract BLoC depends on
+│   ├── entities/           ← pure Dart, no serialisation
+│   └── repositories/       ← abstract class (the contract BLoC depends on)
 └── presentation/
     ├── bloc/
     │   ├── feature_bloc.dart
     │   ├── feature_event.dart
     │   └── feature_state.dart
     ├── pages/
-    └── widgets/            ← widgets scoped to this feature only
+    └── widgets/
 ```
 
 ### State management — Pure BLoC
 
-Every feature uses the full BLoC pattern: explicit event classes, explicit state classes, no Cubits. This keeps state transitions auditable and predictable.
+Explicit event classes, explicit state classes. No Cubits. State transitions are traceable and predictable.
 
 ```dart
-// Event — what happened
+// What happened
 class LoginRequested extends AuthEvent {
   final String email;
   final String password;
 }
 
-// State — what the UI should show
+// What the UI renders
 class AuthSuccess extends AuthState {
   final User user;
 }
 ```
 
-States use a single-class `copyWith` pattern rather than sealed subclasses.
+States use a single-class `copyWith` pattern.
 
 ### Navigation — GoRouter
 
-All routes are defined in `core/router/app_router.dart`. Navigation is handled in two distinct ways:
+Two distinct responsibilities, handled separately:
 
-- **GoRouter redirect guard** — declarative auth protection. If no JWT exists, any `/home/...` route redirects to `/login`. If JWT exists, `/login` and `/register` redirect to `/home/dashboard`. The guard is purely reactive to `AuthBloc` state.
-- **NavigationCubit** — all intentional, imperative navigation (e.g. after a form submits) goes through a `NavigationCubit` in `core/navigation/`. Pages never call `context.go()` directly.
+- **Redirect guard** (declarative) — if no JWT, any `/home/...` redirects to `/login`. If JWT exists, `/login` and `/register` redirect to `/home/dashboard`. Purely reactive to AuthBloc state.
+- **NavigationCubit** (imperative) — all intentional navigation after user actions goes through a central NavigationCubit. Pages never call `context.go()` directly.
 
-### Dependency injection — GetIt
+### Routes
 
-All dependencies are registered in `core/di/injection.dart`. The goal is that adding a new feature never requires touching `main.dart`. The mock-to-real migration for any feature's datasource is a one-line change in `injection.dart`.
+```
+/                           SplashPage
+/login                      LoginPage
+/register                   RegisterPage
+/home                       MainShell (StatefulShellRoute + bottom nav)
+  /home/dashboard           DashboardPage
+  /home/inventory           InventoryPage
+  /home/inventory/add       AddEditItemPage
+  /home/inventory/:id       AddEditItemPage (edit mode)
+  /home/bills               BillsPage
+  /home/bills/scan          ScanPage
+  /home/bills/history/:id   BillDetailPage
+  /home/customers           CustomersPage
+  /home/customers/add       AddCustomerPage
+  /home/customers/:id       CustomerDetailPage
+  /home/settings            SettingsPage
+```
+
+Bottom nav: Home | Bills | [Scan — centre floating] | Customers | Settings
+
+### Dependency Injection — GetIt
+
+All dependencies registered in `core/di/injection.dart`. Adding a feature never requires touching `main.dart`. Mock-to-real migration for any datasource is one line changed in `injection.dart`.
 
 ---
 
@@ -120,17 +134,16 @@ All dependencies are registered in `core/di/injection.dart`. The goal is that ad
 
 ```
 backend/
-├── cmd/
-│   └── api/
-│       └── main.go             ← entry point, server bootstrap
+├── cmd/api/
+│   └── main.go              ← server bootstrap, middleware chain, route registration
 ├── internal/
-│   ├── handler/                ← HTTP layer: parse request, call service, write response
-│   ├── service/                ← Business logic: validation, hashing, JWT, orchestration
-│   ├── repository/             ← Data access: sqlc-generated queries over PostgreSQL
-│   └── model/                  ← Shared domain structs
+│   ├── handler/             ← HTTP: parse request → call service → write response
+│   ├── service/             ← Business logic: validation, hashing, JWT, orchestration
+│   ├── repository/          ← Data: sqlc-generated type-safe queries
+│   └── model/               ← Shared domain structs
 ├── db/
-│   ├── migrations/             ← SQL migration files (golang-migrate)
-│   └── queries/                ← Raw .sql files — sqlc reads these to generate Go
+│   ├── migrations/          ← .up.sql / .down.sql pairs (golang-migrate)
+│   └── queries/             ← raw .sql files sqlc reads to generate Go
 ├── go.mod
 └── .env
 ```
@@ -139,79 +152,90 @@ backend/
 
 ```
 HTTP Request
-  → Chi Router (middleware: CORS, JWT validation)
-  → Handler        (parse JSON → call service)
-  → Service        (business logic → call repository)
-  → Repository     (sqlc query → PostgreSQL)
-  → Response       (service returns model → handler writes JSON)
+  → Chi router (CORS middleware, JWT middleware on protected routes)
+  → Handler      (decode JSON body → validate → call service)
+  → Service      (business logic → call repository)
+  → Repository   (sqlc query → PostgreSQL)
+  → Handler      (encode response JSON → write status)
 ```
-
-The layers map intentionally to what a Flutter developer already knows:
-
-| Backend layer | Flutter equivalent |
-|---|---|
-| Handler | UI / Page (receives input, sends output) |
-| Service | BLoC (all the logic lives here) |
-| Repository | Repository (data access abstraction) |
 
 ### Database — PostgreSQL + sqlc
 
-Raw SQL is written in `db/queries/*.sql`. sqlc reads these and generates fully type-safe Go functions in `internal/repository/`. No ORM — queries are explicit and auditable.
+Raw SQL lives in `db/queries/*.sql`. sqlc reads these and generates fully type-safe Go functions. No ORM — every query is explicit and reviewable.
 
-Migrations are managed with `golang-migrate`. Each migration is a numbered pair of `.up.sql` and `.down.sql` files.
+Migrations managed with golang-migrate. Each migration is a numbered `.up.sql` / `.down.sql` pair.
 
 ### Auth — JWT + bcrypt
 
-- Passwords are hashed with bcrypt before storage
-- JWTs are signed with a secret from `.env` (HS256)
-- All protected routes pass through a JWT middleware registered on the Chi router
-- Access code for registration is a single env var (`ACCESS_CODE=KHATA2025`)
+- Passwords hashed with bcrypt before storage
+- JWTs signed with HS256 using a secret from `.env`
+- JWT middleware on all protected routes via Chi middleware chain
+- Registration gated by a single access code env var (`ACCESS_CODE`)
+
+### API endpoints
+
+```
+POST   /v1/register                     Public
+POST   /v1/login                        Public
+
+GET    /v1/shop                         🔒
+PUT    /v1/shop                         🔒
+
+GET    /v1/items                        🔒
+POST   /v1/items                        🔒
+PUT    /v1/items/:id                    🔒
+DELETE /v1/items/:id                    🔒
+
+GET    /v1/customers                    🔒
+POST   /v1/customers                    🔒
+GET    /v1/customers/:id                🔒
+POST   /v1/customers/:id/payment        🔒
+
+POST   /v1/scan                         🔒  ← image → Gemini → matched items
+POST   /v1/bills                        🔒
+GET    /v1/bills                        🔒
+GET    /v1/bills/:id                    🔒
+
+GET    /v1/analytics/summary            🔒
+```
 
 ---
 
-## Data Flow — End to End
-
-Taking login as a concrete example:
+## End-to-End Data Flow (Scan Billing)
 
 ```
-1. User types email + password → taps "Log in"
-2. LoginPage dispatches LoginRequested event to AuthBloc
-3. AuthBloc calls AuthRepository.login(email, password)
-4. AuthRepositoryImpl delegates to AuthRemoteDatasource.login()
-5. Dio sends POST /v1/login with JSON body
-6. Chi router receives request → AuthHandler.login()
-7. AuthHandler calls AuthService.login()
-8. AuthService fetches user by email via AuthRepository (Go)
-9. AuthService compares bcrypt hash → generates JWT
-10. Handler writes { token, user } JSON response
-11. Dio receives 200 → AuthRemoteDatasource returns AuthResponseModel
-12. AuthRepositoryImpl maps model → User entity
-13. AuthBloc saves JWT to SecureStorage → emits AuthSuccess(user)
-14. GoRouter redirect guard sees AuthSuccess → pushes /home/dashboard
+1.  Shopkeeper taps scan → camera opens (ScanPage)
+2.  Image captured → ScanRequested event dispatched to BillingBloc
+3.  BillingBloc calls BillingRepository.scan(imageBytes)
+4.  RemoteDatasource sends POST /v1/scan with image
+5.  Handler receives image → calls BillingService.scan()
+6.  Service sends image to Gemini Vision API
+7.  Gemini returns detected item names
+8.  Service queries inventory: for each name, fuzzy match against shop's items
+9.  Returns: matched items (with DB price + stock) + unmatched items (name only)
+10. Handler writes JSON response
+11. BillingBloc receives ScanSuccess(items)
+12. UI renders review screen:
+      - Matched items → quantity editable
+      - Unmatched items → name + price editable, flagged as "Not in inventory"
+13. Shopkeeper edits, taps Proceed
+14. Customer selected (or walk-in)
+15. Payment type: Cash or Udhaar
+16. BillConfirmed event → POST /v1/bills
+17. Backend: saves bill, deducts stock, updates khata if udhaar
+18. BillingBloc emits BillSuccess → UI shows confirmation
 ```
 
 ---
 
 ## Key Decisions
 
-**Flutter-first development.** Each feature is built UI-first with a mocked datasource, then the backend is built to satisfy the exact contract the Flutter code already defines. This eliminates guesswork on the API design.
+**Flutter-first development.** Each feature is built UI-first with a mocked datasource. The backend is then built to satisfy the exact contract the Flutter code already defines. No guesswork on API design.
 
-**One-line mock-to-real swap.** The only difference between a mocked and real datasource is one registration line in `injection.dart`. The rest of the feature code is identical.
+**One-line mock-to-real swap.** The only difference between mock and real is one registration line in `injection.dart`.
 
-**Feature docs before code.** Every feature has a spec in `docs/features/` that defines flows, BLoC events/states, API contracts, and file maps before a line is written. The doc is the source of truth.
+**Unmatched items are first-class.** When Gemini detects something not in the shop's inventory, it doesn't fail or get silently dropped — it surfaces in the review screen as an editable card. The shopkeeper stays in control.
 
-**No cross-feature BLoC access.** Features do not read each other's BLoC state directly. Shared state (e.g. current user) lives in `AuthBloc` which is globally provided. Everything else is local to its feature.
+**Cash or udhaar only.** No UPI or payment gateway integration. Keeps the billing flow fast and removes a significant surface area of complexity for a real-world demo.
 
----
-
-## Feature Build Status
-
-| Feature | Flutter | Backend | Wired |
-|---------|---------|---------|-------|
-| Auth | Done | Done | Done |
-| Dashboard | Pending | Pending | Pending |
-| Inventory | Pending | Pending | Pending |
-| Customers | Pending | Pending | Pending |
-| Billing | Pending | Pending | Pending |
-| Khata | Pending | Pending | Pending |
-| Settings | Pending | Pending | Pending |
+**Feature docs before code.** Every feature has a spec in `docs/features/` defining flows, BLoC events/states, API contracts, and file maps before any code is written.
