@@ -13,6 +13,12 @@ import '../../features/auth/data/datasources/auth_mock_datasource.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 
+import '../../features/dashboard/data/datasources/dashboard_datasource.dart';
+import '../../features/dashboard/data/datasources/dashboard_mock_datasource.dart';
+import '../../features/dashboard/data/repositories/dashboard_repository_impl.dart';
+import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
+import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
+
 /// The global GetIt service locator.
 /// Import this anywhere you need a registered instance outside the widget tree.
 /// Inside widgets always prefer context.read<T>() — GetIt is for wiring only.
@@ -22,7 +28,6 @@ final getIt = GetIt.instance;
 /// Registers every dependency in the correct order — bottom of the graph first.
 /// Returns a [Future] so async registrations (e.g. SharedPreferences) work too.
 Future<void> setupDependencies() async {
-
   // ── 1. Primitives ──────────────────────────────────────────────────────────
   // FlutterSecureStorage has no dependencies — register it bare.
   getIt.registerSingleton<FlutterSecureStorage>(
@@ -41,6 +46,11 @@ Future<void> setupDependencies() async {
   getIt.registerSingleton<AuthDataSource>(
     AuthRemoteDataSource(DioClient(getIt<SecureStorageService>())),
   );
+
+  // Dashboard — swap to DashboardRemoteDataSource(DioClient(...)) in Phase 8.
+  getIt.registerSingleton<DashboardDataSource>(
+    DashboardMockDatasource(),
+  );
   // — nothing else in this file or anywhere else changes.
   // getIt.registerSingleton<AuthDataSource>(
   //   AuthMockDatasource(),
@@ -55,10 +65,17 @@ Future<void> setupDependencies() async {
       storage: getIt<SecureStorageService>(),
     ),
   );
+  getIt.registerSingleton<DashboardRepository>(
+    DashboardRepositoryImpl(datasource: getIt<DashboardDataSource>()),
+  );
 
   // ── 5. BLoC ────────────────────────────────────────────────────────────────
   getIt.registerSingleton<AuthBloc>(
     AuthBloc(repository: getIt<AuthRepository>()),
+  );
+
+  getIt.registerSingleton<DashboardBloc>(
+    DashboardBloc(repository: getIt<DashboardRepository>()),
   );
 
   // ── 6. Router ──────────────────────────────────────────────────────────────

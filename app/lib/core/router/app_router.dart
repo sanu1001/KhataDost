@@ -11,6 +11,11 @@ import '../../features/auth/views/pages/login_page.dart';
 import '../../features/auth/views/pages/register_page.dart';
 import '../../features/auth/views/pages/splash_page.dart';
 import '../../features/auth/views/pages/welcome_page.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
+
+import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 
 /// Owns the [GoRouter] instance and the auth redirect guard.
 ///
@@ -31,13 +36,17 @@ class AppRouter {
     refreshListenable: _BlocRefreshStream(_authBloc.stream),
     redirect: _redirect,
     routes: [
-      GoRoute(path: AppRoutes.splash,    builder: (_, __) => const SplashPage()),
-      GoRoute(path: AppRoutes.welcome,   builder: (_, __) => const WelcomePage()),
-      GoRoute(path: AppRoutes.login,     builder: (_, __) => const LoginPage()),
-      GoRoute(path: AppRoutes.register,  builder: (_, __) => const RegisterPage()),
+      GoRoute(path: AppRoutes.splash, builder: (_, __) => const SplashPage()),
+      GoRoute(path: AppRoutes.welcome, builder: (_, __) => const WelcomePage()),
+      GoRoute(path: AppRoutes.login, builder: (_, __) => const LoginPage()),
+      GoRoute(
+          path: AppRoutes.register, builder: (_, __) => const RegisterPage()),
       GoRoute(
         path: AppRoutes.dashboard,
-        builder: (_, __) => const _PlaceholderDashboard(),
+        builder: (_, __) => BlocProvider.value(
+          value: GetIt.I<DashboardBloc>(),
+          child: const DashboardPage(),
+        ),
       ),
       // New features: add a GoRoute here + a method in NavigationCubit.
     ],
@@ -45,18 +54,18 @@ class AppRouter {
 
   String? _redirect(BuildContext context, GoRouterState state) {
     final authStatus = _authBloc.state.status;
-    final loc        = state.matchedLocation;
+    final loc = state.matchedLocation;
 
     if (loc == AppRoutes.splash) return null;
 
     final isAuthenticated = authStatus == AuthStatus.authenticated;
-    final isOnAuthPages   = loc == AppRoutes.welcome ||
-        loc == AppRoutes.login   ||
+    final isOnAuthPages = loc == AppRoutes.welcome ||
+        loc == AppRoutes.login ||
         loc == AppRoutes.register;
-    final isOnHome        = loc.startsWith('/home');
+    final isOnHome = loc.startsWith('/home');
 
-    if (!isAuthenticated && isOnHome)      return AppRoutes.welcome;
-    if (isAuthenticated  && isOnAuthPages) return AppRoutes.dashboard;
+    if (!isAuthenticated && isOnHome) return AppRoutes.welcome;
+    if (isAuthenticated && isOnAuthPages) return AppRoutes.dashboard;
 
     return null;
   }
@@ -79,15 +88,4 @@ class _BlocRefreshStream extends ChangeNotifier {
 
 // ── Placeholder ───────────────────────────────────────────────────────────────
 
-class _PlaceholderDashboard extends StatelessWidget {
-  const _PlaceholderDashboard();
 
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('Dashboard — coming soon', style: TextStyle(fontSize: 22)),
-      ),
-    );
-  }
-}
