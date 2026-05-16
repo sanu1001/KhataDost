@@ -3,7 +3,6 @@ export 'bloc/auth_bloc.dart';
 export 'bloc/auth_event.dart';
 export 'bloc/auth_state.dart';
 export 'data/datasources/auth_datasource.dart';
-export 'data/datasources/auth_exception.dart';
 export 'data/datasources/auth_mock_datasource.dart';
 export 'data/datasources/auth_remote_datasource.dart';
 export 'data/models/auth_response_model.dart';

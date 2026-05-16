@@ -1,7 +1,7 @@
+import '../../../../core/network/api_exception.dart';
 import '../models/auth_response_model.dart';
 import '../models/user_model.dart';
 import 'auth_datasource.dart';   // ← implements the interface now
-import 'auth_exception.dart';
 
 class AuthMockDatasource implements AuthDataSource {  // ← implements add
   static const _validAccessCode = 'KHATA2025';
@@ -38,11 +38,11 @@ class AuthMockDatasource implements AuthDataSource {  // ← implements add
     await Future.delayed(const Duration(milliseconds: 900));
 
     if (accessCode != _validAccessCode) {
-      throw const AuthException('Invalid access code');
+      throw const ApiException('Invalid access code');
     }
 
     if (_registeredEmails.contains(email.toLowerCase())) {
-      throw const AuthException('An account with this email already exists');
+      throw const ApiException('An account with this email already exists');
     }
 
     _registeredEmails.add(email.toLowerCase());
