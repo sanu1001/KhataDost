@@ -1,0 +1,33 @@
+info:
+  name: Login
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "ramesh@example.com",
+        "password": "secret123"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const json = res.getBody();
+
+        if (res.getStatus() === 200 && json.token) {
+          bru.setEnvVar("authToken", json.token);
+          console.log("Token saved:", json.token.substring(0, 20) + "...");
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
