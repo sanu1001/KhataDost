@@ -10,3 +10,6 @@ tmp/
 # Environment
 .env
 *.env.local
+
+# Local environment has URLs that differ per machine
+environments/local.bru
