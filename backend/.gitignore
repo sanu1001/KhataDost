@@ -1,0 +1,15 @@
+# Binaries
+*.exe
+*.exe~
+bin/
+
+# Go build artifacts  
+*.out
+tmp/
+
+# Environment
+.env
+*.env.local
+
+# Local environment has URLs that differ per machine
+environments/local.bru
