@@ -3,7 +3,7 @@ import '../models/user_model.dart';
 import 'auth_datasource.dart';   // ← implements the interface now
 import 'auth_exception.dart';
 
-class AuthMockDatasource implements AuthDataSource {  // ← implements added
+class AuthMockDatasource implements AuthDataSource {  // ← implements add
   static const _validAccessCode = 'KHATA2025';
 
   final Set<String> _registeredEmails = {};

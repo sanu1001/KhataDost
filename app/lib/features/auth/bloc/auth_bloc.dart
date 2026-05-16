@@ -36,7 +36,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (token != null && token.isNotEmpty) {
         // Token exists → user is considered authenticated for now.
         // Phase 4: call a /me endpoint here and populate the User object.
-        emit(state.copyWith(status: AuthStatus.unauthenticated, clearError: true));
+        emit(state.copyWith(status: AuthStatus.authenticated, clearError: true));
       } else {
         emit(state.copyWith(status: AuthStatus.unauthenticated, clearError: true));
       }

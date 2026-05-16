@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/cupertino.dart';
 import '../../../../core/network/dio_client.dart';
 import '../models/auth_response_model.dart';
 import 'auth_datasource.dart';
@@ -21,6 +22,7 @@ class AuthRemoteDataSource implements AuthDataSource {
         '/v1/login',
         data: {'email': email, 'password': password},
       );
+      debugPrint(res.toString());
       return AuthResponseModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw AuthException(_extractMessage(e));
@@ -57,7 +59,11 @@ class AuthRemoteDataSource implements AuthDataSource {
   String _extractMessage(DioException e) {
     try {
       final data = e.response?.data;
-      if (data is Map) return data['message'] as String? ?? _fallback(e);
+      if (data is Map) {
+        return (data['error'] as String?) ??
+          (data['message'] as String?) ??
+          _fallback(e);
+      }
       return _fallback(e);
     } catch (_) {
       return _fallback(e);
@@ -65,6 +71,7 @@ class AuthRemoteDataSource implements AuthDataSource {
   }
 
   String _fallback(DioException e) {
+    debugPrint("Yo im here");
     return switch (e.type) {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.receiveTimeout =>

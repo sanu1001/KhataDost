@@ -2,7 +2,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../navigation/navigation_cubit.dart';
+import '../network/dio_client.dart';
 import '../router/app_router.dart';
 import '../storage/secure_storage.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
@@ -36,13 +38,13 @@ Future<void> setupDependencies() async {
   // Registered as the ABSTRACT type [AuthDataSource].
   // Phase 4 swap: replace AuthMockDatasource() with AuthRemoteDataSource(...)
   // Add this:
-  // getIt.registerSingleton<AuthDataSource>(
-  //   AuthRemoteDataSource(DioClient(getIt<SecureStorageService>())),
-  // );
-  // — nothing else in this file or anywhere else changes.
   getIt.registerSingleton<AuthDataSource>(
-    AuthMockDatasource(),
+    AuthRemoteDataSource(DioClient(getIt<SecureStorageService>())),
   );
+  // — nothing else in this file or anywhere else changes.
+  // getIt.registerSingleton<AuthDataSource>(
+  //   AuthMockDatasource(),
+  // );
 
   // ── 4. Repositories ────────────────────────────────────────────────────────
   // Registered as the ABSTRACT type [AuthRepository].
