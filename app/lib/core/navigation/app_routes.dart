@@ -10,9 +10,12 @@ abstract class AppRoutes {
   static const register = '/register';
 
   // ── App (post-login) ──────────────────────────────────────────────────────
-  static const dashboard = '/home/dashboard';
-// Future features drop in here:
-// static const ledger   = '/home/ledger';
-// static const settings = '/home/settings';
-// static const customers = '/home/customers';
+  static const String dashboard = '/home/dashboard';
+  static const String bills = '/home/bills';
+  static const String inventory = '/home/inventory';
+  static const String customers = '/home/customers';
+
+
+// ── Settings (top-level, outside shell) ───────────────────────────────────
+  static const String settings = '/settings';
 }

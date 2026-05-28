@@ -2,17 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../auth/bloc/auth_bloc.dart';
+import '../../../../core/navigation/navigation_cubit.dart';
+import '../../../../core/navigation/navigation_state.dart';
 import '../../domain/entities/dashboard_summary.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
+import '../../../../core/shell/shell_actions.dart';
 
-/// Home screen after login.
-/// Three sections: greeting, today's sales, recent bills.
-/// Skeleton placeholders on all three while `status == loading`.
-///
-/// NOTE: Refetch on tab focus will be wired in when the bottom-nav shell
-/// (StatefulShellRoute) is built. For now [initState] is the only trigger.
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -21,64 +18,78 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  @override
-  void initState() {
-    super.initState();
+  void _requestLoad() {
     context.read<DashboardBloc>().add(const DashboardLoadRequested());
   }
 
   @override
-  Widget build(BuildContext context) {
-    final shopName =
-        context.read<AuthBloc>().state.user?.shopName ?? '';
+  void initState() {
+    super.initState();
+    _requestLoad();
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('KhataDost'),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            tooltip: 'Settings',
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () {
-              // Wired up by the Settings feature.
+  @override
+  Widget build(BuildContext context) {
+    final shopName = context.read<AuthBloc>().state.user?.shopName ?? '';
+
+    return BlocListener<NavigationCubit, NavigationState>(
+      // Only fire when:
+      // 1. Home tab (index 0) is the active tab
+      // 2. refreshTick actually changed (re-tap happened)
+      listenWhen: (prev, curr) =>
+      curr.activeTabIndex == 0 && prev.refreshTick != curr.refreshTick,
+      listener: (context, _) => _requestLoad(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('KhataDost'),
+          centerTitle: false,
+          actions: const [ShellActions()],
+        ),
+        body: SafeArea(
+          child: BlocBuilder<DashboardBloc, DashboardState>(
+            builder: (context, state) {
+              return RefreshIndicator(
+                // Pull-to-refresh: same event, independent trigger path.
+                onRefresh: () async {
+                  _requestLoad();
+                  // Wait until loading finishes before dismissing the indicator.
+                  await context
+                      .read<DashboardBloc>()
+                      .stream
+                      .firstWhere((s) => !s.isLoading);
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _GreetingSection(
+                        shopName: shopName,
+                        isLoading: state.isLoading && state.summary == null,
+                      ),
+                      const SizedBox(height: 24),
+                      _TodaysSalesCard(
+                        amount: state.summary?.todaySales,
+                        isLoading: state.isLoading,
+                      ),
+                      const SizedBox(height: 28),
+                      _RecentBillsSection(
+                        bills: state.summary?.recentBills ?? const [],
+                        isLoading: state.isLoading,
+                      ),
+                      if (state.hasError) ...[
+                        const SizedBox(height: 20),
+                        _ErrorBanner(
+                          message: state.errorMessage ?? 'Failed to load.',
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
             },
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: BlocBuilder<DashboardBloc, DashboardState>(
-          builder: (context, state) {
-            return SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _GreetingSection(
-                    shopName: shopName,
-                    isLoading: state.isLoading && state.summary == null,
-                  ),
-                  const SizedBox(height: 24),
-                  _TodaysSalesCard(
-                    amount: state.summary?.todaySales,
-                    isLoading: state.isLoading,
-                  ),
-                  const SizedBox(height: 28),
-                  _RecentBillsSection(
-                    bills: state.summary?.recentBills ?? const [],
-                    isLoading: state.isLoading,
-                  ),
-                  if (state.hasError) ...[
-                    const SizedBox(height: 20),
-                    _ErrorBanner(
-                      message: state.errorMessage ?? 'Failed to load.',
-                    ),
-                  ],
-                ],
-              ),
-            );
-          },
         ),
       ),
     );
