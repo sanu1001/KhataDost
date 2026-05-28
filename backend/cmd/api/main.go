@@ -10,12 +10,12 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/sanu1001/KhataDost/backend/internal/db"
 	"github.com/sanu1001/KhataDost/backend/internal/handler"
+	"github.com/sanu1001/KhataDost/backend/internal/middleware"
 	"github.com/sanu1001/KhataDost/backend/internal/repository"
 	"github.com/sanu1001/KhataDost/backend/internal/service"
 )
 
 func main() {
-
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -24,9 +24,15 @@ func main() {
 	database := db.Connect(os.Getenv("DATABASE_URL"))
 	defer database.Close()
 
+	// auth chain
 	authRepo := repository.NewAuthRepository(database)
 	authService := service.NewAuthService(authRepo)
 	authHandler := handler.NewAuthHandler(authService)
+
+	// dashboard chain
+	dashboardRepo := repository.NewDashboardRepository(database)
+	dashboardService := service.NewDashboardService(dashboardRepo)
+	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 
 	r := chi.NewRouter()
 
@@ -35,9 +41,15 @@ func main() {
 		fmt.Fprintln(w, "KhataDost backend is runningg!")
 	})
 
+	// public routes
 	r.Post("/v1/register", authHandler.Register)
 	r.Post("/v1/login", authHandler.Login)
 
+	// protected routes
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.RequireAuth)
+		r.Get("/v1/dashboard/summary", dashboardHandler.GetSummary)
+	})
 
 	port := os.Getenv("PORT")
 	log.Printf("Server starting on port %s...", port)

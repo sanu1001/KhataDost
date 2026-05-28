@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/repositories/dashboard_repository.dart';
@@ -27,6 +28,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) async {
     // Keep previous summary in state so the UI can render last-known data
     // underneath the skeleton during refetch (instead of flashing empty).
+    debugPrint('🔄 DashboardLoadRequested fired');  // add this
     emit(state.copyWith(status: DashboardStatus.loading, clearError: true));
 
     try {

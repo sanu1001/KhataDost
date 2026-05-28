@@ -9,4 +9,5 @@ abstract class AppConstants {
   static const routeLogin     = '/login';
   static const routeRegister  = '/register';
   static const routeDashboard = '/home/dashboard';
+
 }

@@ -1,0 +1,37 @@
+info:
+  name: Register
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/register"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Ramesh",
+        "shop_name": "Ramesh Kirana",
+        "phone": "9876543210",
+        "email": "ramesh@example.com",
+        "password": "secret123",
+        "access_code": "KHATA2025"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const json = res.getBody();
+
+        if (res.getStatus() === 201 && json.token) {
+          bru.setEnvVar("authToken", json.token);
+          console.log("Token saved:", json.token.substring(0, 20) + "...");
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

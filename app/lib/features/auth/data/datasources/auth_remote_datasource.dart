@@ -1,11 +1,14 @@
+// app/lib/features/auth/data/datasources/auth_remote_datasource.dart
+
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart';
+
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/network/dio_error_mapper.dart';
 import '../models/auth_response_model.dart';
 import 'auth_datasource.dart';
-import 'auth_exception.dart';
 
-/// Real HTTP datasource — wired in Step 4 of the build order.
+/// Real HTTP datasource for the auth endpoints.
 /// Drop-in replacement for [AuthMockDatasource]; same method signatures.
 class AuthRemoteDataSource implements AuthDataSource {
   const AuthRemoteDataSource(this._client);
@@ -22,10 +25,9 @@ class AuthRemoteDataSource implements AuthDataSource {
         '/v1/login',
         data: {'email': email, 'password': password},
       );
-      debugPrint(res.toString());
       return AuthResponseModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {
-      throw AuthException(_extractMessage(e));
+      throw ApiException(mapDioError(e), statusCode: e.response?.statusCode);
     }
   }
 
@@ -52,32 +54,7 @@ class AuthRemoteDataSource implements AuthDataSource {
       );
       return AuthResponseModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {
-      throw AuthException(_extractMessage(e));
+      throw ApiException(mapDioError(e), statusCode: e.response?.statusCode);
     }
-  }
-
-  String _extractMessage(DioException e) {
-    try {
-      final data = e.response?.data;
-      if (data is Map) {
-        return (data['error'] as String?) ??
-          (data['message'] as String?) ??
-          _fallback(e);
-      }
-      return _fallback(e);
-    } catch (_) {
-      return _fallback(e);
-    }
-  }
-
-  String _fallback(DioException e) {
-    debugPrint("Yo im here");
-    return switch (e.type) {
-      DioExceptionType.connectionTimeout ||
-      DioExceptionType.receiveTimeout =>
-      'Connection timed out. Please try again.',
-      DioExceptionType.connectionError => 'No internet connection.',
-      _ => 'Something went wrong. Please try again.',
-    };
   }
 }

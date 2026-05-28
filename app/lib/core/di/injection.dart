@@ -8,13 +8,15 @@ import '../network/dio_client.dart';
 import '../router/app_router.dart';
 import '../storage/secure_storage.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
+import '../../features/auth/bloc/auth_event.dart';
 import '../../features/auth/data/datasources/auth_datasource.dart';
 // import '../../features/auth/data/datasources/auth_mock_datasource.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 
 import '../../features/dashboard/data/datasources/dashboard_datasource.dart';
-import '../../features/dashboard/data/datasources/dashboard_mock_datasource.dart';
+// import '../../features/dashboard/data/datasources/dashboard_mock_datasource.dart';
+import '../../features/dashboard/data/datasources/dashboard_remote_datasource.dart';
 import '../../features/dashboard/data/repositories/dashboard_repository_impl.dart';
 import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
@@ -39,21 +41,41 @@ Future<void> setupDependencies() async {
     SecureStorageService(getIt<FlutterSecureStorage>()),
   );
 
-  // ── 3. Data sources ────────────────────────────────────────────────────────
-  // Registered as the ABSTRACT type [AuthDataSource].
-  // Phase 4 swap: replace AuthMockDatasource() with AuthRemoteDataSource(...)
-  // Add this:
-  getIt.registerSingleton<AuthDataSource>(
-    AuthRemoteDataSource(DioClient(getIt<SecureStorageService>())),
+  // Single shared Dio + interceptor chain for every remote datasource.
+  // Lifted here when the dashboard came online so we don't spawn one Dio
+  // instance per feature.
+  //
+  // onUnauthorized fires when an AUTHENTICATED request comes back 401
+  // (token expired / revoked). We dispatch LogoutRequested on AuthBloc:
+  //   → AuthRepository.logout() → SecureStorage.clearToken()
+  //   → AuthBloc emits unauthenticated
+  //   → router refreshListenable fires → guard redirects to /welcome.
+  //
+  // The getIt<AuthBloc>() lookup is lazy — it only runs when 401 actually
+  // fires, by which point AuthBloc has been registered below.
+  getIt.registerSingleton<DioClient>(
+    DioClient(
+      getIt<SecureStorageService>(),
+      onUnauthorized: () => getIt<AuthBloc>().add(const LogoutRequested()),
+    ),
   );
 
-  // Dashboard — swap to DashboardRemoteDataSource(DioClient(...)) in Phase 8.
-  getIt.registerSingleton<DashboardDataSource>(
-    DashboardMockDatasource(),
+  // ── 3. Data sources ────────────────────────────────────────────────────────
+  // Each datasource is registered against its ABSTRACT type so repositories
+  // (and BLoCs) never see the concrete impl. Mock registrations are kept in
+  // commented form for tests + portfolio — flip the comments to roll back.
+  getIt.registerSingleton<AuthDataSource>(
+    AuthRemoteDataSource(getIt<DioClient>()),
   );
-  // — nothing else in this file or anywhere else changes.
   // getIt.registerSingleton<AuthDataSource>(
   //   AuthMockDatasource(),
+  // );
+
+  getIt.registerSingleton<DashboardDataSource>(
+    DashboardRemoteDataSource(getIt<DioClient>()),
+  );
+  // getIt.registerSingleton<DashboardDataSource>(
+  //   DashboardMockDatasource(),
   // );
 
   // ── 4. Repositories ────────────────────────────────────────────────────────
