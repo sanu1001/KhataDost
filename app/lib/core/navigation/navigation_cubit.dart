@@ -117,4 +117,23 @@ class NavigationCubit extends Cubit<NavigationState> {
     _router.push(AppRoutes.settings);
     emit(state.pushed(AppRoutes.settings));
   }
+
+  // ── Customers ─────────────────────────────────────────────────────────────
+
+  void pushAddCustomer() {
+    _router.push(AppRoutes.customersAdd);
+    emit(state.pushed(AppRoutes.customersAdd));
+  }
+
+  void pushCustomerDetail(String id) {
+    final path = AppRoutes.customerDetailPath(id);
+    _router.push(path);
+    emit(state.pushed(path));
+  }
+
+  void pushCustomerEdit(String id) {
+    final path = AppRoutes.customerEditPath(id);
+    _router.push(path);
+    emit(state.pushed(path));
+  }
 }

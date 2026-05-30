@@ -37,6 +37,7 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   cupertino_icons: ^1.0.8
   get_it: ^8.0.3
+  collection: ^1.18.0
 
 flutter_native_splash:
   color: "#1B4332"
