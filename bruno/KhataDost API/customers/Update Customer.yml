@@ -1,0 +1,26 @@
+info:
+  name: Update Customer
+  type: http
+  seq: 3
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/customers/92273545-09bb-494a-9fe0-5b16cf72b06f"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Rommit gomrai",
+        "phone": "9876543215",
+        "email": null,
+        "notes": null
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
