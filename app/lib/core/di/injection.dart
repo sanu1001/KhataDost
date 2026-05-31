@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../../features/customers/data/datasources/customer_datasource.dart';
 import '../../features/customers/data/datasources/customer_mock_datasource.dart';
+import '../../features/customers/data/datasources/customer_remote_datasource.dart';
 import '../../features/customers/data/repositories/customer_repository_impl.dart';
 import '../../features/customers/domain/repositories/customer_repository.dart';
 import '../../features/customers/presentation/bloc/customers_bloc.dart';
@@ -91,12 +92,13 @@ Future<void> setupDependencies() async {
 
 
   /// Customer Datasources ----------------
-  getIt.registerSingleton<CustomerDatasource>(
-    CustomerMockDatasource(),
-  );
   // getIt.registerSingleton<CustomerDatasource>(
-  //   CustomerRemoteDataSource(getIt<DioClient>()),
+  //   CustomerMockDatasource(),
   // );
+  
+  getIt.registerSingleton<CustomerDatasource>(
+    CustomerRemoteDataSource(getIt<DioClient>()),
+  );
 
 
   // ── 4. Repositories ────────────────────────────────────────────────────────
