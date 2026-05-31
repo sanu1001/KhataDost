@@ -16,12 +16,10 @@ import '../storage/secure_storage.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
 import '../../features/auth/bloc/auth_event.dart';
 import '../../features/auth/data/datasources/auth_datasource.dart';
-// import '../../features/auth/data/datasources/auth_mock_datasource.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 
 import '../../features/dashboard/data/datasources/dashboard_datasource.dart';
-// import '../../features/dashboard/data/datasources/dashboard_mock_datasource.dart';
 import '../../features/dashboard/data/datasources/dashboard_remote_datasource.dart';
 import '../../features/dashboard/data/repositories/dashboard_repository_impl.dart';
 import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
@@ -71,8 +69,6 @@ Future<void> setupDependencies() async {
   // (and BLoCs) never see the concrete impl. Mock registrations are kept in
   // commented form for tests + portfolio — flip the comments to roll back.
 
-
-
   /// Auth Datasources -------------------
   // getIt.registerSingleton<AuthDataSource>(
   //   AuthMockDatasource(),
@@ -80,7 +76,6 @@ Future<void> setupDependencies() async {
   getIt.registerSingleton<AuthDataSource>(
     AuthRemoteDataSource(getIt<DioClient>()),
   );
-
 
   /// Dashboard Datasources ----------------
   // getIt.registerSingleton<DashboardDataSource>(
@@ -90,16 +85,14 @@ Future<void> setupDependencies() async {
     DashboardRemoteDataSource(getIt<DioClient>()),
   );
 
-
   /// Customer Datasources ----------------
   // getIt.registerSingleton<CustomerDatasource>(
   //   CustomerMockDatasource(),
   // );
-  
+
   getIt.registerSingleton<CustomerDatasource>(
     CustomerRemoteDataSource(getIt<DioClient>()),
   );
-
 
   // ── 4. Repositories ────────────────────────────────────────────────────────
   // Registered as the ABSTRACT type [AuthRepository].
@@ -117,7 +110,6 @@ Future<void> setupDependencies() async {
   getIt.registerSingleton<CustomerRepository>(
     CustomerRepositoryImpl(getIt<CustomerDatasource>()),
   );
-
 
   // ── 5. BLoC ────────────────────────────────────────────────────────────────
   getIt.registerSingleton<AuthBloc>(
