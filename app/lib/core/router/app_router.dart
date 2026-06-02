@@ -22,6 +22,11 @@ import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../shell/app_shell.dart';
 
+import '../../features/customers/presentation/bloc/customers_bloc.dart';
+import '../../features/customers/presentation/pages/customer_detail_page.dart';
+import '../../features/customers/presentation/pages/customer_form_page.dart';
+
+
 class AppRouter {
   AppRouter({required AuthBloc authBloc}) : _authBloc = authBloc;
 
@@ -85,11 +90,45 @@ class AppRouter {
           ),
 
           // Branch 3 — Customers
+          // Branch 3 — Customers
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: AppRoutes.customers,
-                builder: (_, __) => const CustomersPage(),
+                builder: (_, __) => BlocProvider.value(
+                  value: GetIt.I<CustomersBloc>(),
+                  child: const CustomersPage(),
+                ),
+                routes: [
+                  // Sub-routes are CHILDREN of /home/customers, so they push
+                  // WITHIN branch 3 — the bottom nav stays visible and the
+                  // branch's own stack is preserved.
+                  GoRoute(
+                    path: 'add', // relative → /home/customers/add
+                    builder: (_, __) => BlocProvider.value(
+                      value: GetIt.I<CustomersBloc>(),
+                      child: const CustomerFormPage(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':id/edit', // relative → /home/customers/:id/edit
+                    builder: (_, state) => BlocProvider.value(
+                      value: GetIt.I<CustomersBloc>(),
+                      child: CustomerFormPage(
+                        customerId: state.pathParameters['id'],
+                      ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':id', // relative → /home/customers/:id
+                    builder: (_, state) => BlocProvider.value(
+                      value: GetIt.I<CustomersBloc>(),
+                      child: CustomerDetailPage(
+                        customerId: state.pathParameters['id']!,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

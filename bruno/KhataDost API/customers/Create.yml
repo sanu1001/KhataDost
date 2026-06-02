@@ -1,0 +1,26 @@
+info:
+  name: Create
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/customers"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Anindita Sen",
+        "phone": "9876543217",
+        "email": null,
+        "notes": null
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

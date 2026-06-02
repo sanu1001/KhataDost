@@ -3,6 +3,12 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/data/datasources/auth_remote_datasource.dart';
+import '../../features/customers/data/datasources/customer_datasource.dart';
+import '../../features/customers/data/datasources/customer_mock_datasource.dart';
+import '../../features/customers/data/datasources/customer_remote_datasource.dart';
+import '../../features/customers/data/repositories/customer_repository_impl.dart';
+import '../../features/customers/domain/repositories/customer_repository.dart';
+import '../../features/customers/presentation/bloc/customers_bloc.dart';
 import '../navigation/navigation_cubit.dart';
 import '../network/dio_client.dart';
 import '../router/app_router.dart';
@@ -10,12 +16,10 @@ import '../storage/secure_storage.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
 import '../../features/auth/bloc/auth_event.dart';
 import '../../features/auth/data/datasources/auth_datasource.dart';
-// import '../../features/auth/data/datasources/auth_mock_datasource.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 
 import '../../features/dashboard/data/datasources/dashboard_datasource.dart';
-// import '../../features/dashboard/data/datasources/dashboard_mock_datasource.dart';
 import '../../features/dashboard/data/datasources/dashboard_remote_datasource.dart';
 import '../../features/dashboard/data/repositories/dashboard_repository_impl.dart';
 import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
@@ -64,19 +68,31 @@ Future<void> setupDependencies() async {
   // Each datasource is registered against its ABSTRACT type so repositories
   // (and BLoCs) never see the concrete impl. Mock registrations are kept in
   // commented form for tests + portfolio — flip the comments to roll back.
-  getIt.registerSingleton<AuthDataSource>(
-    AuthRemoteDataSource(getIt<DioClient>()),
-  );
+
+  /// Auth Datasources -------------------
   // getIt.registerSingleton<AuthDataSource>(
   //   AuthMockDatasource(),
   // );
-
-  getIt.registerSingleton<DashboardDataSource>(
-    DashboardRemoteDataSource(getIt<DioClient>()),
+  getIt.registerSingleton<AuthDataSource>(
+    AuthRemoteDataSource(getIt<DioClient>()),
   );
+
+  /// Dashboard Datasources ----------------
   // getIt.registerSingleton<DashboardDataSource>(
   //   DashboardMockDatasource(),
   // );
+  getIt.registerSingleton<DashboardDataSource>(
+    DashboardRemoteDataSource(getIt<DioClient>()),
+  );
+
+  /// Customer Datasources ----------------
+  // getIt.registerSingleton<CustomerDatasource>(
+  //   CustomerMockDatasource(),
+  // );
+
+  getIt.registerSingleton<CustomerDatasource>(
+    CustomerRemoteDataSource(getIt<DioClient>()),
+  );
 
   // ── 4. Repositories ────────────────────────────────────────────────────────
   // Registered as the ABSTRACT type [AuthRepository].
@@ -91,6 +107,10 @@ Future<void> setupDependencies() async {
     DashboardRepositoryImpl(datasource: getIt<DashboardDataSource>()),
   );
 
+  getIt.registerSingleton<CustomerRepository>(
+    CustomerRepositoryImpl(getIt<CustomerDatasource>()),
+  );
+
   // ── 5. BLoC ────────────────────────────────────────────────────────────────
   getIt.registerSingleton<AuthBloc>(
     AuthBloc(repository: getIt<AuthRepository>()),
@@ -98,6 +118,10 @@ Future<void> setupDependencies() async {
 
   getIt.registerSingleton<DashboardBloc>(
     DashboardBloc(repository: getIt<DashboardRepository>()),
+  );
+
+  getIt.registerSingleton<CustomersBloc>(
+    CustomersBloc(getIt<CustomerRepository>()),
   );
 
   // ── 6. Router ──────────────────────────────────────────────────────────────

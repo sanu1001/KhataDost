@@ -34,6 +34,11 @@ func main() {
 	dashboardService := service.NewDashboardService(dashboardRepo)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 
+	// customer chain
+	customerRepo := repository.NewCustomerRepository(database)
+	customerService := service.NewCustomerService(customerRepo)
+	customerHandler := handler.NewCustomerHandler(customerService)
+
 	r := chi.NewRouter()
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
@@ -49,6 +54,11 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.RequireAuth)
 		r.Get("/v1/dashboard/summary", dashboardHandler.GetSummary)
+
+		r.Post("/v1/customers", customerHandler.Create)
+		r.Get("/v1/customers", customerHandler.List)
+		r.Put("/v1/customers/{id}", customerHandler.Update)
+		r.Delete("/v1/customers/{id}", customerHandler.Delete)
 	})
 
 	port := os.Getenv("PORT")

@@ -5,6 +5,7 @@
 package sqlcgen
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,18 @@ type Bill struct {
 	CustomerName string
 	Amount       string
 	CreatedAt    time.Time
+}
+
+type Customer struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Name      string
+	Phone     string
+	Email     sql.NullString
+	Notes     sql.NullString
+	HasDues   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type User struct {
