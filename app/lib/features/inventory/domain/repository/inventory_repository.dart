@@ -1,8 +1,7 @@
-import '../../domain/entities/item.dart';
+import '../entities/item.dart';
 
-abstract class InventoryDatasource {
+abstract class InventoryRepository {
   Future<List<Item>> getItems();
-
   Future<Item> createItem({
     required String name,
     required String pricingType,
@@ -36,4 +35,6 @@ abstract class InventoryDatasource {
   });
 
   Future<Item> deleteVariant({required String itemId, required String variantId});
+
+
 }

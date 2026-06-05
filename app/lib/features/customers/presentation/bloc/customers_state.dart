@@ -47,6 +47,6 @@ class CustomersState extends Equatable {
     searchQuery,
     visibleCustomers,
     errorMessage,
-    // searchIndex is intentionally NOT here — see note below
+    // //searchIndex derived from items, and not Equatable
   ];
 }
