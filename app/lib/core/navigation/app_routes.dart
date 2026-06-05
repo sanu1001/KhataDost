@@ -26,6 +26,16 @@ abstract class AppRoutes {
   static String customerEditPath(String id) => '/home/customers/$id/edit';
 
 
+
+  static const String inventoryAdd = '/home/inventory/add';
+  // :id patterns for GoRoute
+  static const String inventoryDetail = '/home/inventory/:id';
+  static const String inventoryEdit = '/home/inventory/:id/edit';
+
+  static String inventoryDetailPath(String id) => '/home/inventory/$id';
+  static String inventoryEditPath(String id) => '/home/inventory/$id/edit';
+
+
 // ── Settings (top-level, outside shell) ───────────────────────────────────
   static const String settings = '/settings';
 }

@@ -7,6 +7,7 @@ import 'package:khata_dost/features/bills/presentation/pages/bills_page.dart';
 import 'package:khata_dost/features/customers/presentation/pages/customers_page.dart';
 import 'package:khata_dost/features/inventory/presentation/pages/inventory_page.dart';
 
+import '../../features/inventory/presentation/bloc/inventory_bloc.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../navigation/app_routes.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
@@ -25,6 +26,9 @@ import '../shell/app_shell.dart';
 import '../../features/customers/presentation/bloc/customers_bloc.dart';
 import '../../features/customers/presentation/pages/customer_detail_page.dart';
 import '../../features/customers/presentation/pages/customer_form_page.dart';
+
+import '../../features/inventory/presentation/pages/item_detail_page.dart';
+import '../../features/inventory/presentation/pages/item_form_page.dart';
 
 
 class AppRouter {
@@ -80,11 +84,43 @@ class AppRouter {
           ),
 
           // Branch 2 — Inventory
+          // Branch 2 — Inventory
+          // Branch 2 — Inventory
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: AppRoutes.inventory,
-                builder: (_, __) => const InventoryPage(),
+                builder: (_, __) => BlocProvider.value(
+                  value: GetIt.I<InventoryBloc>(),
+                  child: const InventoryPage(),
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'add',
+                    builder: (_, __) => BlocProvider.value(
+                      value: GetIt.I<InventoryBloc>(),
+                      child: const ItemFormPage(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':id/edit',
+                    builder: (_, state) => BlocProvider.value(
+                      value: GetIt.I<InventoryBloc>(),
+                      child: ItemFormPage(
+                        itemId: state.pathParameters['id'],
+                      ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) => BlocProvider.value(
+                      value: GetIt.I<InventoryBloc>(),
+                      child: ItemDetailPage(
+                        itemId: state.pathParameters['id']!,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

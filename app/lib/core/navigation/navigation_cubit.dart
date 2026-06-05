@@ -111,6 +111,26 @@ class NavigationCubit extends Cubit<NavigationState> {
     ));
   }
 
+  // ── Inventory ─────────────────────────────────────────────────────────────
+
+  void pushAddItem() {
+    _router.push(AppRoutes.inventoryAdd);
+    emit(state.pushed(AppRoutes.inventoryAdd));
+  }
+
+  void pushItemDetail(String id) {
+    final path = AppRoutes.inventoryDetailPath(id);
+    _router.push(path);
+    emit(state.pushed(path));
+  }
+
+  void pushItemEdit(String id) {
+    final path = AppRoutes.inventoryEditPath(id);
+    _router.push(path);
+    emit(state.pushed(path));
+  }
+
+
   // ── Settings ──────────────────────────────────────────────────────────────
 
   void pushSettings() {

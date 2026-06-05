@@ -25,6 +25,13 @@ import '../../features/dashboard/data/repositories/dashboard_repository_impl.dar
 import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 
+
+import '../../features/inventory/data/datasources/inventory_datasource.dart';
+import '../../features/inventory/data/datasources/inventory_mock_datasource.dart';
+import '../../features/inventory/data/repositories/inventory_repository_impl.dart';
+import '../../features/inventory/domain/repository/inventory_repository.dart';
+import '../../features/inventory/presentation/bloc/inventory_bloc.dart';
+
 /// The global GetIt service locator.
 /// Import this anywhere you need a registered instance outside the widget tree.
 /// Inside widgets always prefer context.read<T>() — GetIt is for wiring only.
@@ -94,6 +101,15 @@ Future<void> setupDependencies() async {
     CustomerRemoteDataSource(getIt<DioClient>()),
   );
 
+
+  /// Inventory Datasources ----------------
+  getIt.registerSingleton<InventoryDatasource>(
+    InventoryMockDatasource(),
+  );
+  // getIt.registerSingleton<InventoryDatasource>(
+  //   InventoryRemoteDataSource(getIt<DioClient>()),  // swap in when backend is wired
+  // );
+
   // ── 4. Repositories ────────────────────────────────────────────────────────
   // Registered as the ABSTRACT type [AuthRepository].
   // The BLoC never knows the concrete impl exists.
@@ -111,6 +127,10 @@ Future<void> setupDependencies() async {
     CustomerRepositoryImpl(getIt<CustomerDatasource>()),
   );
 
+  getIt.registerSingleton<InventoryRepository>(
+    InventoryRepositoryImpl(getIt<InventoryDatasource>()),
+  );
+
   // ── 5. BLoC ────────────────────────────────────────────────────────────────
   getIt.registerSingleton<AuthBloc>(
     AuthBloc(repository: getIt<AuthRepository>()),
@@ -122,6 +142,10 @@ Future<void> setupDependencies() async {
 
   getIt.registerSingleton<CustomersBloc>(
     CustomersBloc(getIt<CustomerRepository>()),
+  );
+
+  getIt.registerSingleton<InventoryBloc>(
+    InventoryBloc(getIt<InventoryRepository>()),
   );
 
   // ── 6. Router ──────────────────────────────────────────────────────────────
