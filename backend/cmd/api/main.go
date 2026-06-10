@@ -44,6 +44,12 @@ func main() {
 	inventoryService := service.NewInventoryService(inventoryRepo)
 	inventoryHandler := handler.NewInventoryHandler(inventoryService)
 
+	// billing chain (reuses the frozen customer repo read-only: ownership
+	// guard + customer_name snapshot at settle time)
+	billingRepo := repository.NewBillingRepository(database)
+	billingService := service.NewBillingService(billingRepo, customerRepo)
+	billingHandler := handler.NewBillingHandler(billingService)
+
 	r := chi.NewRouter()
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
@@ -72,6 +78,10 @@ func main() {
 		r.Post("/v1/inventory/{id}/variants", inventoryHandler.AddVariant)
 		r.Put("/v1/inventory/{id}/variants/{vid}", inventoryHandler.UpdateVariant)
 		r.Delete("/v1/inventory/{id}/variants/{vid}", inventoryHandler.DeleteVariant)
+
+		r.Post("/v1/bills", billingHandler.Create)
+		r.Get("/v1/bills", billingHandler.List)
+		r.Get("/v1/bills/{id}", billingHandler.GetByID)
 	})
 
 	port := os.Getenv("PORT")

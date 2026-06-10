@@ -1,0 +1,25 @@
+info:
+  name: Get Bill by ID
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/bills/{{billId}}"
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // {{billId}} is saved by Create Credit Bill. Expect 200 with the
+        // nested items array (denormalized line snapshots).
+        console.log(res.getStatus(), JSON.stringify(res.getBody()));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

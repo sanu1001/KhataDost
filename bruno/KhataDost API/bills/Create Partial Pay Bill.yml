@@ -1,0 +1,36 @@
+info:
+  name: Create Partial Pay Bill
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/bills"
+  body:
+    type: json
+    data: |-
+      {
+        "customer_id": "{{customerId}}",
+        "amount_paid": 300,
+        "items": [
+          { "name": "Rice Bag", "quantity": 1, "unit_price": 250 }
+        ]
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // Partial/overpay: bill 250, paying 300 -> the extra 50 pays down old
+        // dues (new_balance = old + 250 - 300). Expect 201. Phase 2 writes a
+        // khata credit (250, linked to bill) + payment (300) in the same tx.
+        console.log(res.getStatus(), JSON.stringify(res.getBody()));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

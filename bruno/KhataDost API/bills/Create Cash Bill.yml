@@ -1,0 +1,35 @@
+info:
+  name: Create Cash Bill
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/bills"
+  body:
+    type: json
+    data: |-
+      {
+        "items": [
+          { "name": "Chai", "quantity": 2, "unit_price": 10 },
+          { "name": "Parle-G", "quantity": 1, "unit_price": 5 }
+        ]
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // Walk-in cash sale: no customer_id, amount_paid omitted -> defaults
+        // to the bill total. Expect 201, customer_name "Walk-in", amount 25,
+        // amount_paid 25. Writes NOTHING to khata (fully settled).
+        console.log(res.getStatus(), JSON.stringify(res.getBody()));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -17,6 +17,20 @@ type Bill struct {
 	CustomerName string
 	Amount       string
 	CreatedAt    time.Time
+	CustomerID   uuid.NullUUID
+	AmountPaid   string
+}
+
+type BillItem struct {
+	ID        uuid.UUID
+	BillID    uuid.UUID
+	ItemID    uuid.NullUUID
+	VariantID uuid.NullUUID
+	Name      string
+	Quantity  string
+	UnitPrice string
+	LineTotal string
+	CreatedAt time.Time
 }
 
 type Customer struct {

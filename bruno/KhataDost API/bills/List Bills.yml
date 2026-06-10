@@ -1,0 +1,25 @@
+info:
+  name: List Bills
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/bills"
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // Headers only, newest first; items always [] here (lines come from
+        // GET /v1/bills/{id}). Expect 200 {"bills":[...]}.
+        console.log(res.getStatus(), "bills:", res.getBody().bills?.length);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
