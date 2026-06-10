@@ -1,7 +1,8 @@
 abstract class AppConstants {
   static const jwtKey = 'khatadost_jwt';
 
-  static const baseUrl = 'http://10.0.2.2:8080';
+  static const baseUrl = 'http://10.0.2.2:8080'; // EMULATOR
+
 
 
   static const routeSplash    = '/';

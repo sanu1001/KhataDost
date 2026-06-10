@@ -4,11 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../../features/customers/data/datasources/customer_datasource.dart';
-import '../../features/customers/data/datasources/customer_mock_datasource.dart';
+// import '../../features/customers/data/datasources/customer_mock_datasource.dart';
 import '../../features/customers/data/datasources/customer_remote_datasource.dart';
 import '../../features/customers/data/repositories/customer_repository_impl.dart';
 import '../../features/customers/domain/repositories/customer_repository.dart';
 import '../../features/customers/presentation/bloc/customers_bloc.dart';
+import '../../features/inventory/data/datasources/inventory_remote_datasource.dart';
 import '../navigation/navigation_cubit.dart';
 import '../network/dio_client.dart';
 import '../router/app_router.dart';
@@ -24,6 +25,12 @@ import '../../features/dashboard/data/datasources/dashboard_remote_datasource.da
 import '../../features/dashboard/data/repositories/dashboard_repository_impl.dart';
 import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
+
+import '../../features/inventory/data/datasources/inventory_datasource.dart';
+import '../../features/inventory/data/datasources/inventory_mock_datasource.dart';
+import '../../features/inventory/data/repositories/inventory_repository_impl.dart';
+import '../../features/inventory/domain/repository/inventory_repository.dart';
+import '../../features/inventory/presentation/bloc/inventory_bloc.dart';
 
 /// The global GetIt service locator.
 /// Import this anywhere you need a registered instance outside the widget tree.
@@ -94,6 +101,14 @@ Future<void> setupDependencies() async {
     CustomerRemoteDataSource(getIt<DioClient>()),
   );
 
+  /// Inventory Datasources ----------------
+  // getIt.registerSingleton<InventoryDatasource>(
+  //   InventoryMockDatasource(),
+  // );
+  getIt.registerSingleton<InventoryDatasource>(
+    InventoryRemoteDataSource(getIt<DioClient>()),  // swap in when backend is wired
+  );
+
   // ── 4. Repositories ────────────────────────────────────────────────────────
   // Registered as the ABSTRACT type [AuthRepository].
   // The BLoC never knows the concrete impl exists.
@@ -111,6 +126,10 @@ Future<void> setupDependencies() async {
     CustomerRepositoryImpl(getIt<CustomerDatasource>()),
   );
 
+  getIt.registerSingleton<InventoryRepository>(
+    InventoryRepositoryImpl(getIt<InventoryDatasource>()),
+  );
+
   // ── 5. BLoC ────────────────────────────────────────────────────────────────
   getIt.registerSingleton<AuthBloc>(
     AuthBloc(repository: getIt<AuthRepository>()),
@@ -122,6 +141,10 @@ Future<void> setupDependencies() async {
 
   getIt.registerSingleton<CustomersBloc>(
     CustomersBloc(getIt<CustomerRepository>()),
+  );
+
+  getIt.registerSingleton<InventoryBloc>(
+    InventoryBloc(getIt<InventoryRepository>()),
   );
 
   // ── 6. Router ──────────────────────────────────────────────────────────────

@@ -1,0 +1,17 @@
+info:
+  name: Delete Variant
+  type: http
+  seq: 6
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/v1/inventory/not-a-uuid"
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

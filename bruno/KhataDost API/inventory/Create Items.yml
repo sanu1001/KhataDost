@@ -1,0 +1,20 @@
+info:
+  name: Create Items
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/inventory"
+  body:
+    type: json
+    data: '{ "name": "Sugar", "pricing_type": "loose", "rate": 30.00, "unit": "kg" }'
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

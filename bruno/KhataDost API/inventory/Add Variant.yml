@@ -1,0 +1,20 @@
+info:
+  name: Add Variant
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/inventory/e32b0831-665e-453b-8732-b55952f43d73/variants"
+  body:
+    type: json
+    data: '{ "label": "test", "price": 5.00, "is_default": false }'
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
