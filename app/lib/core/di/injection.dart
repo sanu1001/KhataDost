@@ -4,11 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../../features/customers/data/datasources/customer_datasource.dart';
-import '../../features/customers/data/datasources/customer_mock_datasource.dart';
+// import '../../features/customers/data/datasources/customer_mock_datasource.dart';
 import '../../features/customers/data/datasources/customer_remote_datasource.dart';
 import '../../features/customers/data/repositories/customer_repository_impl.dart';
 import '../../features/customers/domain/repositories/customer_repository.dart';
 import '../../features/customers/presentation/bloc/customers_bloc.dart';
+import '../../features/inventory/data/datasources/inventory_remote_datasource.dart';
 import '../navigation/navigation_cubit.dart';
 import '../network/dio_client.dart';
 import '../router/app_router.dart';
@@ -24,7 +25,6 @@ import '../../features/dashboard/data/datasources/dashboard_remote_datasource.da
 import '../../features/dashboard/data/repositories/dashboard_repository_impl.dart';
 import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
-
 
 import '../../features/inventory/data/datasources/inventory_datasource.dart';
 import '../../features/inventory/data/datasources/inventory_mock_datasource.dart';
@@ -101,14 +101,13 @@ Future<void> setupDependencies() async {
     CustomerRemoteDataSource(getIt<DioClient>()),
   );
 
-
   /// Inventory Datasources ----------------
-  getIt.registerSingleton<InventoryDatasource>(
-    InventoryMockDatasource(),
-  );
   // getIt.registerSingleton<InventoryDatasource>(
-  //   InventoryRemoteDataSource(getIt<DioClient>()),  // swap in when backend is wired
+  //   InventoryMockDatasource(),
   // );
+  getIt.registerSingleton<InventoryDatasource>(
+    InventoryRemoteDataSource(getIt<DioClient>()),  // swap in when backend is wired
+  );
 
   // ── 4. Repositories ────────────────────────────────────────────────────────
   // Registered as the ABSTRACT type [AuthRepository].

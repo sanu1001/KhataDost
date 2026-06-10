@@ -19,14 +19,14 @@ abstract class InventoryRepository {
 
   Future<void> deleteItem({required String id});
 
-  Future<Item> addVariant({
+  Future<ItemVariant> addVariant({
     required String itemId,
     required String label,
     required double price,
     required bool isDefault,
   });
 
-  Future<Item> updateVariant({
+  Future<ItemVariant> updateVariant({
     required String itemId,
     required String variantId,
     String? label,
@@ -34,7 +34,7 @@ abstract class InventoryRepository {
     bool? isDefault,
   });
 
-  Future<Item> deleteVariant({required String itemId, required String variantId});
+  Future<void> deleteVariant({required String itemId, required String variantId});
 
 
 }

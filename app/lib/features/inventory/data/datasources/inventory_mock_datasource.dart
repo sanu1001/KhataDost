@@ -86,64 +86,65 @@ class InventoryMockDatasource implements InventoryDatasource{
   }
 
   @override
-  Future<Item> addVariant({required String itemId, required String label, required double price, required bool isDefault}) async {
+  Future<ItemVariant> addVariant({required String itemId, required String label, required double price, required bool isDefault}) async {
     await Future.delayed(const Duration(milliseconds: 400));
     final index = _items.indexWhere((i) => i.id == itemId);
-    if(index == -1) throw Exception('Item of this variant not found for adding');
+    if (index == -1) throw Exception('Item of this variant not found for adding');
 
     final item = _items[index];
-    if(item is! UnitItemModel){
+    if (item is! UnitItemModel) {
       throw Exception('Cannot add variant for loose items');
     }
+
     final newVariant = ItemVariantModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       label: label,
       price: price,
       isDefault: isDefault,
     );
-    final updated = UnitItemModel(
+
+    // still mutate _items so getItems() refetch shows it
+    _items[index] = UnitItemModel(
       id: item.id,
       name: item.name,
       variants: [...item.variants, newVariant],
     );
-    _items[index] = updated;
-    return updated;
 
+    return newVariant; // ← return the VARIANT, not the item
   }
+
   @override
-  Future<Item> updateVariant({required String itemId, required String variantId , String? label, double? price, bool? isDefault}) async {
+  Future<ItemVariant> updateVariant({required String itemId, required String variantId, String? label, double? price, bool? isDefault}) async {
     await Future.delayed(const Duration(milliseconds: 400));
     final index = _items.indexWhere((i) => i.id == itemId);
-    if(index == -1) throw Exception('Item of this variant not found for updating');
+    if (index == -1) throw Exception('Item of this variant not found for updating');
 
     final item = _items[index];
-    if(item is! UnitItemModel){
+    if (item is! UnitItemModel) {
       throw Exception('Cannot update variant for loose items');
     }
 
-    final varIndex = item.variants.indexWhere((i) => i.id == variantId);
-    if(varIndex == -1) throw Exception('This Variant does not exist for this item');
+    final varIndex = item.variants.indexWhere((v) => v.id == variantId);
+    if (varIndex == -1) throw Exception('This Variant does not exist for this item');
 
     final updatedVar = ItemVariantModel(
-        id: variantId,
-        label: label!,
-        isDefault: isDefault!,
-        price: price!
+      id: variantId,
+      label: label!,
+      price: price!,
+      isDefault: isDefault!,
     );
 
-    final updatedItem = UnitItemModel(
-        id: item.id,
-        name: item.name,
-        variants: item.variants.map((v) => v.id == variantId ? updatedVar : v).toList(),
+    _items[index] = UnitItemModel(
+      id: item.id,
+      name: item.name,
+      variants: item.variants.map((v) => v.id == variantId ? updatedVar : v).toList(),
     );
 
-    _items[index] = updatedItem;
-    return updatedItem;
-
+    return updatedVar; // ← return the VARIANT
   }
 
   @override
-  Future<Item> deleteVariant({required String itemId , required String variantId}) async {
+  Future<void> deleteVariant({required String itemId , required String variantId}) async {
     await Future.delayed(const Duration(milliseconds: 400));
     final index = _items.indexWhere((i) => i.id == itemId);
     if(index == -1) throw Exception('Item not found');
@@ -159,6 +160,6 @@ class InventoryMockDatasource implements InventoryDatasource{
       variants: item.variants.where((v) => v.id != variantId).toList(),
     );
     _items[index] = updated;
-    return updated;
+    return;
   }
 }

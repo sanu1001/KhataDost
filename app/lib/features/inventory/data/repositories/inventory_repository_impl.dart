@@ -35,7 +35,7 @@ class InventoryRepositoryImpl implements InventoryRepository{
   Future<void> deleteItem({required String id}) => _datasource.deleteItem(id: id);
 
   @override
-  Future<Item> addVariant({
+  Future<ItemVariant> addVariant({
     required String itemId,
     required String label,
     required double price,
@@ -43,7 +43,7 @@ class InventoryRepositoryImpl implements InventoryRepository{
   }) => _datasource.addVariant(itemId: itemId, label: label, price: price, isDefault: isDefault);
 
   @override
-  Future<Item> updateVariant({
+  Future<ItemVariant> updateVariant({
     required String itemId,
     required String variantId,
     String? label,
@@ -52,7 +52,7 @@ class InventoryRepositoryImpl implements InventoryRepository{
   }) => _datasource.updateVariant(itemId: itemId, variantId: variantId, label: label, price: price, isDefault: isDefault);
 
   @override
-  Future<Item> deleteVariant({required String itemId, required String variantId}) => _datasource.deleteVariant(itemId: itemId, variantId: variantId);
+  Future<void> deleteVariant({required String itemId, required String variantId}) => _datasource.deleteVariant(itemId: itemId, variantId: variantId);
 
 
 }

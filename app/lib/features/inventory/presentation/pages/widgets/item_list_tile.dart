@@ -52,10 +52,18 @@ class ItemListTile extends StatelessWidget {
     LooseItem(:final rate, :final unit) => '₹${_money(rate)}/$unit',
   };
 
+  // String _unitHint(List<ItemVariant> variants) {
+  //   if (variants.isEmpty) return '—';
+  //   final base =
+  //   variants.firstWhere((v) => v.isDefault, orElse: () => variants.first);
+  //   final count = variants.length > 1 ? ' · ${variants.length} sizes' : '';
+  //   return 'from ₹${_money(base.price)}$count';
+  // }
+
   String _unitHint(List<ItemVariant> variants) {
     if (variants.isEmpty) return '—';
-    final base =
-    variants.firstWhere((v) => v.isDefault, orElse: () => variants.first);
+    final defaults = variants.where((v) => v.isDefault);
+    final base = defaults.isEmpty ? variants.first : defaults.first;
     final count = variants.length > 1 ? ' · ${variants.length} sizes' : '';
     return 'from ₹${_money(base.price)}$count';
   }
