@@ -1,0 +1,25 @@
+info:
+  name: Update Variant
+  type: http
+  seq: 4
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/inventory/dd160e93-e5a0-4106-9db5-1a62ad084153/variants/2233f510-ac83-4e6d-a95f-b645f2dddd23"
+  body:
+    type: json
+    data: |-
+      {
+        "label": "small",
+        "price": 12.00,
+        "is_default": true
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

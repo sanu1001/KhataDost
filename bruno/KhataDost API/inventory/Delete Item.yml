@@ -1,0 +1,17 @@
+info:
+  name: Delete Item
+  type: http
+  seq: 7
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/v1/inventory/dd160e93-e5a0-4106-9db5-1a62ad084153"
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

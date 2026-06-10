@@ -1,0 +1,20 @@
+info:
+  name: Update Item
+  type: http
+  seq: 5
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/inventory/00000000-0000-0000-0000-000000000000"
+  body:
+    type: json
+    data: '{ "name": "Ghost", "rate": null, "unit": null }'
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
