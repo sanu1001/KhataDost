@@ -31,6 +31,28 @@ type Customer struct {
 	UpdatedAt time.Time
 }
 
+type Item struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Name        string
+	PricingType string
+	Rate        sql.NullString
+	Unit        sql.NullString
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type ItemVariant struct {
+	ID          uuid.UUID
+	ItemID      uuid.UUID
+	Label       string
+	Price       string
+	IsDefault   bool
+	Description sql.NullString
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type User struct {
 	ID        uuid.UUID
 	Name      string

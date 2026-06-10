@@ -39,6 +39,11 @@ func main() {
 	customerService := service.NewCustomerService(customerRepo)
 	customerHandler := handler.NewCustomerHandler(customerService)
 
+	// inventory chain
+	inventoryRepo := repository.NewInventoryRepository(database)
+	inventoryService := service.NewInventoryService(inventoryRepo)
+	inventoryHandler := handler.NewInventoryHandler(inventoryService)
+
 	r := chi.NewRouter()
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
@@ -59,6 +64,14 @@ func main() {
 		r.Get("/v1/customers", customerHandler.List)
 		r.Put("/v1/customers/{id}", customerHandler.Update)
 		r.Delete("/v1/customers/{id}", customerHandler.Delete)
+
+		r.Post("/v1/inventory", inventoryHandler.Create)
+		r.Get("/v1/inventory", inventoryHandler.List)
+		r.Put("/v1/inventory/{id}", inventoryHandler.UpdateItem)
+		r.Delete("/v1/inventory/{id}", inventoryHandler.DeleteItem)
+		r.Post("/v1/inventory/{id}/variants", inventoryHandler.AddVariant)
+		r.Put("/v1/inventory/{id}/variants/{vid}", inventoryHandler.UpdateVariant)
+		r.Delete("/v1/inventory/{id}/variants/{vid}", inventoryHandler.DeleteVariant)
 	})
 
 	port := os.Getenv("PORT")
