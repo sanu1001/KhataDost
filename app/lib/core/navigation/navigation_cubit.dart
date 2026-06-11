@@ -157,6 +157,16 @@ class NavigationCubit extends Cubit<NavigationState> {
     emit(state.pushed(path));
   }
 
+  // ── Khata ─────────────────────────────────────────────────────────────────
+
+  /// Detail page's Khata tile → the customer's khata page (within the
+  /// Customers branch — bottom nav stays, back lands on the detail page).
+  void pushKhata(String customerId) {
+    final path = AppRoutes.customerKhataPath(customerId);
+    _router.push(path);
+    emit(state.pushed(path));
+  }
+
   // ── Billing ───────────────────────────────────────────────────────────────
 
   /// Manual on-ramp: Bills tab "+" → push the builder WITHIN branch 1.

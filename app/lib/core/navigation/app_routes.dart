@@ -25,7 +25,9 @@ abstract class AppRoutes {
   static String customerDetailPath(String id) => '/home/customers/$id';
   static String customerEditPath(String id) => '/home/customers/$id/edit';
 
-
+  // ── Khata (inside the Customers branch — the detail page's grown stub) ────
+  static const String customerKhata = '/home/customers/:id/khata';
+  static String customerKhataPath(String id) => '/home/customers/$id/khata';
 
   static const String inventoryAdd = '/home/inventory/add';
   // :id patterns for GoRoute

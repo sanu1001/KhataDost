@@ -45,6 +45,13 @@ import '../../features/bills/domain/repositories/scan_repository.dart';
 import '../../features/bills/presentation/bloc/bill_builder_bloc.dart';
 import '../../features/bills/presentation/bloc/bills_bloc.dart';
 
+import '../../features/khata/data/datasources/khata_datasource.dart';
+// import '../../features/khata/data/datasources/khata_mock_datasource.dart';
+import '../../features/khata/data/datasources/khata_remote_datasource.dart';
+import '../../features/khata/data/repositories/khata_repository_impl.dart';
+import '../../features/khata/domain/repositories/khata_repository.dart';
+import '../../features/khata/presentation/bloc/khata_bloc.dart';
+
 /// The global GetIt service locator.
 /// Import this anywhere you need a registered instance outside the widget tree.
 /// Inside widgets always prefer context.read<T>() — GetIt is for wiring only.
@@ -138,6 +145,14 @@ Future<void> setupDependencies() async {
     ScanRemoteDatasource(getIt<DioClient>()),
   );
 
+  /// Khata Datasources ---------------- (real; comment-swap to roll back to mock)
+  // getIt.registerSingleton<KhataDatasource>(
+  //   KhataMockDatasource(),
+  // );
+  getIt.registerSingleton<KhataDatasource>(
+    KhataRemoteDatasource(getIt<DioClient>()),
+  );
+
   // ── 4. Repositories ────────────────────────────────────────────────────────
   // Registered as the ABSTRACT type [AuthRepository].
   // The BLoC never knows the concrete impl exists.
@@ -165,6 +180,10 @@ Future<void> setupDependencies() async {
 
   getIt.registerSingleton<ScanRepository>(
     ScanRepositoryImpl(getIt<ScanDatasource>()),
+  );
+
+  getIt.registerSingleton<KhataRepository>(
+    KhataRepositoryImpl(getIt<KhataDatasource>()),
   );
 
   // ── 5. BLoC ────────────────────────────────────────────────────────────────
@@ -196,6 +215,17 @@ Future<void> setupDependencies() async {
 
   getIt.registerSingleton<BillsBloc>(
     BillsBloc(getIt<BillingRepository>()),
+  );
+
+  // ONE ledger view app-wide, provided per-route in the customers branch.
+  // BillingRepository is READ-ONLY reuse (getBillById for the items
+  // sheet) — same pattern as the backend khata service reusing the
+  // frozen customer repo.
+  getIt.registerSingleton<KhataBloc>(
+    KhataBloc(
+      khataRepository: getIt<KhataRepository>(),
+      billingRepository: getIt<BillingRepository>(),
+    ),
   );
 
   // ── 6. Router ──────────────────────────────────────────────────────────────

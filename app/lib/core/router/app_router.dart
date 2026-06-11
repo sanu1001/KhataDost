@@ -35,6 +35,9 @@ import '../../features/bills/presentation/bloc/bills_bloc.dart';
 import '../../features/bills/presentation/pages/bill_builder_page.dart';
 import '../../features/bills/presentation/pages/settle_page.dart';
 
+import '../../features/khata/presentation/bloc/khata_bloc.dart';
+import '../../features/khata/presentation/pages/customer_khata_page.dart';
+
 
 class AppRouter {
   AppRouter({required AuthBloc authBloc}) : _authBloc = authBloc;
@@ -197,6 +200,23 @@ class AppRouter {
                       value: GetIt.I<CustomersBloc>(),
                       child: CustomerFormPage(
                         customerId: state.pathParameters['id'],
+                      ),
+                    ),
+                  ),
+                  // Phase 5: the detail page's grown stub — the khata page
+                  // pushes WITHIN branch 3 (back lands on the detail page).
+                  // Listed before ':id' alongside ':id/edit' (two-segment
+                  // patterns match before the one-segment detail route).
+                  GoRoute(
+                    path: ':id/khata', // relative → /home/customers/:id/khata
+                    builder: (_, state) => MultiBlocProvider(
+                      providers: [
+                        BlocProvider.value(value: GetIt.I<KhataBloc>()),
+                        // Customer name + has_dues refresh (read-only reuse).
+                        BlocProvider.value(value: GetIt.I<CustomersBloc>()),
+                      ],
+                      child: CustomerKhataPage(
+                        customerId: state.pathParameters['id']!,
                       ),
                     ),
                   ),

@@ -79,6 +79,20 @@ class CustomerDetailPage extends StatelessWidget {
                     _DetailRow(label: 'Email', value: customer.email!),
                   if (customer.notes != null)
                     _DetailRow(label: 'Notes', value: customer.notes!),
+                  // Phase 5 (sanctioned): the designed "becomes the Khata home"
+                  // stub grows its entry point — detail page → khata page.
+                  const SizedBox(height: 8),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: ListTile(
+                      leading: const Icon(Icons.menu_book_outlined),
+                      title: const Text('Khata'),
+                      subtitle: const Text('Balance & entry timeline'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () =>
+                          context.read<NavigationCubit>().pushKhata(customerId),
+                    ),
+                  ),
                   if (customer.hasDues) ...[
                     const SizedBox(height: 16),
                     _DuesBanner(),
