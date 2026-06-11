@@ -8,6 +8,7 @@ package sqlcgen
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -15,7 +16,7 @@ import (
 const createCustomer = `-- name: CreateCustomer :one
 INSERT INTO customers (user_id, name, phone, email, notes)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, user_id, name, phone, email, notes, has_dues, created_at, updated_at
+RETURNING id, user_id, name, phone, email, notes, false AS has_dues, created_at, updated_at
 `
 
 type CreateCustomerParams struct {
@@ -26,10 +27,24 @@ type CreateCustomerParams struct {
 	Notes  sql.NullString
 }
 
+type CreateCustomerRow struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Name      string
+	Phone     string
+	Email     sql.NullString
+	Notes     sql.NullString
+	HasDues   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 // Insert a new customer scoped to the owning shop (user_id).
-// RETURNING hands back the full row (server-generated id, has_dues default,
-// timestamps) so the handler can echo it to the client with no second query.
-func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error) {
+// RETURNING hands back the full row so the handler can echo it to the client
+// with no second query. has_dues is always false for a brand-new customer
+// (no khata_entries exist yet) — emitted as a literal so the Go contract
+// (HasDues bool) is preserved after migration 006 dropped the column.
+func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (CreateCustomerRow, error) {
 	row := q.db.QueryRowContext(ctx, createCustomer,
 		arg.UserID,
 		arg.Name,
@@ -37,7 +52,7 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 		arg.Email,
 		arg.Notes,
 	)
-	var i Customer
+	var i CreateCustomerRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -71,9 +86,23 @@ func (q *Queries) DeleteCustomer(ctx context.Context, arg DeleteCustomerParams) 
 }
 
 const getCustomerByID = `-- name: GetCustomerByID :one
-SELECT id, user_id, name, phone, email, notes, has_dues, created_at, updated_at
-FROM customers
-WHERE id = $1 AND user_id = $2
+SELECT
+    c.id,
+    c.user_id,
+    c.name,
+    c.phone,
+    c.email,
+    c.notes,
+    COALESCE(
+        SUM(CASE WHEN k.type = 'credit' THEN k.amount ELSE -k.amount END),
+        0
+    )::numeric <> 0 AS has_dues,
+    c.created_at,
+    c.updated_at
+FROM customers c
+LEFT JOIN khata_entries k ON k.customer_id = c.id AND k.user_id = c.user_id
+WHERE c.id = $1 AND c.user_id = $2
+GROUP BY c.id, c.user_id, c.name, c.phone, c.email, c.notes, c.created_at, c.updated_at
 `
 
 type GetCustomerByIDParams struct {
@@ -81,11 +110,24 @@ type GetCustomerByIDParams struct {
 	UserID uuid.UUID
 }
 
+type GetCustomerByIDRow struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Name      string
+	Phone     string
+	Email     sql.NullString
+	Notes     sql.NullString
+	HasDues   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 // Single customer, scoped by BOTH id AND user_id — a shop can never read
 // another shop's customer even with a guessed id.
-func (q *Queries) GetCustomerByID(ctx context.Context, arg GetCustomerByIDParams) (Customer, error) {
+// has_dues computed the same way as ListCustomers.
+func (q *Queries) GetCustomerByID(ctx context.Context, arg GetCustomerByIDParams) (GetCustomerByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getCustomerByID, arg.ID, arg.UserID)
-	var i Customer
+	var i GetCustomerByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -101,22 +143,50 @@ func (q *Queries) GetCustomerByID(ctx context.Context, arg GetCustomerByIDParams
 }
 
 const listCustomers = `-- name: ListCustomers :many
-SELECT id, user_id, name, phone, email, notes, has_dues, created_at, updated_at
-FROM customers
-WHERE user_id = $1
-ORDER BY name
+SELECT
+    c.id,
+    c.user_id,
+    c.name,
+    c.phone,
+    c.email,
+    c.notes,
+    COALESCE(
+        SUM(CASE WHEN k.type = 'credit' THEN k.amount ELSE -k.amount END),
+        0
+    )::numeric <> 0 AS has_dues,
+    c.created_at,
+    c.updated_at
+FROM customers c
+LEFT JOIN khata_entries k ON k.customer_id = c.id AND k.user_id = c.user_id
+WHERE c.user_id = $1
+GROUP BY c.id, c.user_id, c.name, c.phone, c.email, c.notes, c.created_at, c.updated_at
+ORDER BY c.name
 `
 
+type ListCustomersRow struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Name      string
+	Phone     string
+	Email     sql.NullString
+	Notes     sql.NullString
+	HasDues   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 // Full list for one shop, alphabetical. Backed by idx_customers_user_name.
-func (q *Queries) ListCustomers(ctx context.Context, userID uuid.UUID) ([]Customer, error) {
+// has_dues is computed: balance (SUM credits − SUM payments) != 0.
+// LEFT JOIN so customers with no entries are included (has_dues = false).
+func (q *Queries) ListCustomers(ctx context.Context, userID uuid.UUID) ([]ListCustomersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCustomers, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Customer
+	var items []ListCustomersRow
 	for rows.Next() {
-		var i Customer
+		var i ListCustomersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -145,7 +215,7 @@ const updateCustomer = `-- name: UpdateCustomer :one
 UPDATE customers
 SET name = $3, phone = $4, email = $5, notes = $6, updated_at = NOW()
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, name, phone, email, notes, has_dues, created_at, updated_at
+RETURNING id, user_id, name, phone, email, notes, false AS has_dues, created_at, updated_at
 `
 
 type UpdateCustomerParams struct {
@@ -157,9 +227,22 @@ type UpdateCustomerParams struct {
 	Notes  sql.NullString
 }
 
+type UpdateCustomerRow struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Name      string
+	Phone     string
+	Email     sql.NullString
+	Notes     sql.NullString
+	HasDues   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 // Update identity fields, bump updated_at. Scoped by id AND user_id.
-// has_dues is NOT updatable here — it's khata-owned (temporary manual flip for now).
-func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error) {
+// has_dues emitted as false (identity updates never change balances; the UI
+// refreshes the list after update, which calls ListCustomers with the real value).
+func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (UpdateCustomerRow, error) {
 	row := q.db.QueryRowContext(ctx, updateCustomer,
 		arg.ID,
 		arg.UserID,
@@ -168,7 +251,7 @@ func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) 
 		arg.Email,
 		arg.Notes,
 	)
-	var i Customer
+	var i UpdateCustomerRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,

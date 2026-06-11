@@ -50,6 +50,11 @@ func main() {
 	billingService := service.NewBillingService(billingRepo, customerRepo)
 	billingHandler := handler.NewBillingHandler(billingService)
 
+	// khata chain (reuses the frozen customer repo read-only: ownership guard)
+	khataRepo := repository.NewKhataRepository(database)
+	khataService := service.NewKhataService(khataRepo, customerRepo)
+	khataHandler := handler.NewKhataHandler(khataService)
+
 	r := chi.NewRouter()
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
@@ -82,6 +87,9 @@ func main() {
 		r.Post("/v1/bills", billingHandler.Create)
 		r.Get("/v1/bills", billingHandler.List)
 		r.Get("/v1/bills/{id}", billingHandler.GetByID)
+
+		r.Get("/v1/khata/{customerId}", khataHandler.GetKhata)
+		r.Post("/v1/khata/{customerId}/payment", khataHandler.RecordPayment)
 	})
 
 	port := os.Getenv("PORT")

@@ -40,7 +40,6 @@ type Customer struct {
 	Phone     string
 	Email     sql.NullString
 	Notes     sql.NullString
-	HasDues   bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -65,6 +64,17 @@ type ItemVariant struct {
 	Description sql.NullString
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type KhataEntry struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	CustomerID uuid.UUID
+	Type       string
+	Amount     string
+	BillID     uuid.NullUUID
+	Note       sql.NullString
+	CreatedAt  time.Time
 }
 
 type User struct {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -83,17 +84,10 @@ func NewBillingRepository(db *sqlx.DB) BillingRepository {
 }
 
 // ── CreateBillWithItems — THE settlement transaction ────────────────────────
-// Inserts the bill header, then N lines, ALL-OR-NOTHING. The service has
-// already validated the business rules (non-empty bill, walk-in pays full,
-// totals recomputed server-side) before we get here — this method's only job
-// is atomicity. Same BeginTxx + defer Rollback + New(tx) shape as inventory's
-// CreateItemWithVariants.
-//
-// PHASE 2 (khata) extends THIS transaction: when the customer is on tab
-// (customerID set AND amountPaid != total), a khata 'credit' entry (= total,
-// linked to the bill) and — if amountPaid > 0 — a 'payment' entry
-// (= amountPaid) are inserted here, inside the same tx, after the lines.
-// The khata_entries table arrives with migration 006.
+// Inserts the bill header, then N lines, then (Phase 2) khata entries if the
+// customer is on tab — ALL-OR-NOTHING. The service has already validated the
+// business rules before we get here; this method's only job is atomicity.
+// Same BeginTxx + defer Rollback + New(tx) shape as inventory's CreateItemWithVariants.
 func (r *billingRepository) CreateBillWithItems(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -141,15 +135,53 @@ func (r *billingRepository) CreateBillWithItems(
 		created = append(created, billItemToDomain(itemRow))
 	}
 
-	// PHASE 2 INSERTION POINT: khata 'credit' (+ optional 'payment') entries
-	// go here, inside this same transaction, once migration 006 exists.
+	// 3. PHASE 2: Write khata entries if the customer is on tab.
+	//    Condition: customer bill (not walk-in) AND amount_paid != bill total.
+	//    A fully-paid cash bill writes nothing — a settled bill has no place
+	//    in the dues book (locked design decision from the Notion log).
+	//
+	//    'credit' entry  = bill total, linked to the bill (always, when on tab)
+	//    'payment' entry = amount_paid, no bill link (only if paid > 0)
+	//
+	//    Both entries share the transaction timestamp — the khata timeline
+	//    uses (created_at, id) for ordering so credit appears before payment.
+	if customerID != nil && math.Abs(amountPaid-total) >= 0.005 {
+		// 3a. Credit entry: the full bill total, linked to this bill.
+		_, err = qtx.InsertKhataEntry(ctx, sqlcgen.InsertKhataEntryParams{
+			UserID:     userID,
+			CustomerID: *customerID,
+			Type:       "credit",
+			Amount:     floatToString(total),
+			BillID:     uuid.NullUUID{UUID: billRow.ID, Valid: true},
+			Note:       sql.NullString{Valid: false},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("CreateBillWithItems khata credit: %w", err)
+		}
 
-	// 3. Commit. After this, the deferred Rollback becomes a no-op.
+		// 3b. Payment entry: only if the customer paid anything upfront.
+		//     (amountPaid == 0 means full credit — no payment entry at all.)
+		if amountPaid > 0 {
+			_, err = qtx.InsertKhataEntry(ctx, sqlcgen.InsertKhataEntryParams{
+				UserID:     userID,
+				CustomerID: *customerID,
+				Type:       "payment",
+				Amount:     floatToString(amountPaid),
+				BillID:     uuid.NullUUID{Valid: false},
+				Note:       sql.NullString{Valid: false},
+			})
+			if err != nil {
+				return nil, fmt.Errorf("CreateBillWithItems khata payment: %w", err)
+			}
+		}
+	}
+
+	// 4. Commit. After this, the deferred Rollback becomes a no-op.
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("CreateBillWithItems commit: %w", err)
 	}
 
-	// 4. Assemble the domain object to return (no extra query — we have it all).
+	// 5. Assemble the domain object to return (no extra query — we have it all).
 	return &BillWithItems{
 		Bill:  billToDomain(billRow),
 		Items: created,
@@ -207,9 +239,8 @@ func (r *billingRepository) GetBillByID(ctx context.Context, id, userID uuid.UUI
 }
 
 // ── Mapping helpers (sqlc ↔ domain) ─────────────────────────────────────────
-// floatToString / toNullString / fromNullString / nullStringToFloatPtr are NOT
-// redefined here — they live in customer_repository.go / inventory_repository.go
-// in this same `repository` package.
+// floatToString / toNullString / fromNullString are NOT redefined here — they
+// live in customer_repository.go / inventory_repository.go in this same package.
 
 // quantityToString: float64 → string for the NUMERIC(12,3) quantity column.
 // Three decimals (not two): quantity is a count for Type A (2.000) or a
