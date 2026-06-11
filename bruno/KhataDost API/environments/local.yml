@@ -8,3 +8,5 @@ variables:
     value: 4dec0ff0-3a26-4e84-ab6d-ec0bb89decd8
   - name: billId
     value: ""
+  - name: scanImagePath
+    value: D:\Programming_W\todoINSPO\bill-photo.jpg

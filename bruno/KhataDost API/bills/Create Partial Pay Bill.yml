@@ -11,7 +11,7 @@ http:
     data: |-
       {
         "customer_id": "{{customerId}}",
-        "amount_paid": 300,
+        "amount_paid": 100,
         "items": [
           { "name": "Rice Bag", "quantity": 1, "unit_price": 250 }
         ]

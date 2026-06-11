@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 	"github.com/sanu1001/KhataDost/backend/internal/db"
+	"github.com/sanu1001/KhataDost/backend/internal/gemini"
 	"github.com/sanu1001/KhataDost/backend/internal/handler"
 	"github.com/sanu1001/KhataDost/backend/internal/middleware"
 	"github.com/sanu1001/KhataDost/backend/internal/repository"
@@ -55,6 +56,16 @@ func main() {
 	khataService := service.NewKhataService(khataRepo, customerRepo)
 	khataHandler := handler.NewKhataHandler(khataService)
 
+	// scan chain (reuses the frozen inventory repo read-only: the match pool).
+	// The Gemini key lives in .env ONLY — it never ships in the Flutter app.
+	geminiKey := os.Getenv("GEMINI_API_KEY")
+	if geminiKey == "" {
+		log.Println("WARNING: GEMINI_API_KEY not set — /v1/scan will return 502 until it is added to .env")
+	}
+	geminiClient := gemini.NewClient(geminiKey)
+	scanService := service.NewScanService(geminiClient, inventoryRepo)
+	scanHandler := handler.NewScanHandler(scanService)
+
 	r := chi.NewRouter()
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
@@ -90,6 +101,8 @@ func main() {
 
 		r.Get("/v1/khata/{customerId}", khataHandler.GetKhata)
 		r.Post("/v1/khata/{customerId}/payment", khataHandler.RecordPayment)
+
+		r.Post("/v1/scan", scanHandler.Scan)
 	})
 
 	port := os.Getenv("PORT")
