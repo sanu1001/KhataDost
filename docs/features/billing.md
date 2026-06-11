@@ -91,3 +91,51 @@ Response money fields are JSON numbers (`amount`, `amount_paid`, `quantity`, `un
 - `billing_handler.go` — decode/validate + body-uuid parsing, sentinel→status map, response mapping.
 - `cmd/api/main.go` — additive chain + 3 routes in the protected group.
 - Bruno: `bills/` folder — cash, credit, partial, walk-in-409, list, get, 401 (env vars `customerId`, `billId`).
+
+---
+
+## Flutter layer (Phase 4) — `features/bills/`
+
+The existing `features/bills/` placeholder grows up — billing's own territory, not frozen. Scan's Flutter side (capture + upload) lives here too: scan has no screen of its own, it's an on-ramp event on the builder.
+
+### The draft model — `DraftLine` (the editable notebook, §9–§10)
+
+A draft line is NOT the persisted `BillItem` — it keeps enough provenance to stay interactive, then resolves at submit:
+
+- **`UnitDraftLine`** — carries the full `UnitItem` + selected `variantId` + count + `nameOverride?`/`priceOverride?`. **Swipe = select variant** (sets `variantId`, *clears* `priceOverride` so the card shows the new variant's price). Hand-editing the price sets `priceOverride`, which wins until the next swipe. Effective price = `priceOverride ?? selectedVariant.price`.
+- **`LooseDraftLine`** — carries the `LooseItem` + typed `measure` + overrides. Line cost = `rate × measure`, recomputed **live** on every keystroke. Manual on-ramp only (no label → no scan).
+- **`MiscDraftLine`** — free `name + quantity + unitPrice`. Scan's unmatched labels arrive as misc lines with name+qty pre-filled and price 0, cursor-ready.
+
+All three resolve `name / quantity / unitPrice / lineTotal` through the same pure functions, and map to the `POST /v1/bills` line shape (`item_id`/`variant_id` per the provenance table above).
+
+### Pure math — `domain/bill_math.dart` (unit-tested first)
+
+`round2`, `lineTotal(qty, price)`, `billTotal(lines)`, `payingNowDefault(total)`. Client math is **advisory display only** — the server recomputes every figure; both round half-away-from-zero at 2dp so they agree. Tests cover: unit/loose/misc line totals, live measure recompute, running total across mixed lines, paying-now default, override-vs-swipe precedence.
+
+### Layer map
+
+- `domain/entities/` — `bill.dart` (`Bill`, `BillItem` — persisted, resolved), `draft_line.dart` (sealed), `scan_result.dart` (`ScanResult`, `ScanMatch` — carries the existing inventory `Item` entity, `UnmatchedDetection`)
+- `domain/bill_math.dart` — pure functions → `test/features/bills/bill_math_test.dart`
+- `domain/repositories/` — `billing_repository.dart` (`createBill`, `getBills`, `getBillById`), `scan_repository.dart` (`scan`)
+- `data/models/` — `bill_model.dart`, `scan_result_model.dart` (reuses inventory's `itemFromJson` for the nested card)
+- `data/datasources/` — `billing_datasource.dart` + mock + remote; `scan_datasource.dart` + mock + remote. Mocks stay in-tree forever; GetIt comment-swap. The billing mock mirrors server rules (walk-in 409, empty-bill 400) so error UX is testable offline; the scan mock returns canned matches pointing at the inventory mock's items (Lays @ v1, Colgate @ v4) + one unmatched label.
+- `presentation/bloc/` — `bill_builder_bloc` (the draft: lines, derived total, settle inputs, `scanStatus`), `bills_bloc` (history list). Both single-state + `copyWith`, status enums, Equatable.
+- `presentation/pages/` — `bills_page.dart` (list, replaces the placeholder), `bill_builder_page.dart` (the notebook), `settle_page.dart`, `widgets/` (line cards, add-line sheet, scan-source sheet)
+
+### Architecture decision — ONE draft across two on-ramps (decided with Lelouch, 2026-06-11)
+
+`BillBuilderBloc` is a **GetIt singleton provided per-route** — the same instance behind every billing route, exactly how four customer routes share one `CustomersBloc`. "Branch-scoped" was always about *where the provider attaches*, not lifetime, so nothing is hoisted to the shell. Routes live in the **Bills branch**: `/home/bills/new` (builder) and `/home/bills/new/settle`. The center Scan FAB calls `NavigationCubit.goToScanBill()` → `go('/home/bills/new?scan=1')` → shell switches to the Bills branch and the builder auto-opens the capture sheet. Both on-ramps therefore land on the same route family pulling the same singleton: one draft, by construction. The FAB stub's `debugPrint` → one `NavigationCubit` call is a sanctioned one-liner (the stub was always designed to grow); the shell never touches the bloc itself.
+
+### Scan on-ramp (Phase 3 endpoint, Phase 4 capture)
+
+`image_picker ^1.2.2` (camera + gallery; gallery is the emulator path) with `maxWidth: 1600, imageQuality: 80` keeps the JPEG well under the 7 MB decode cap. Page picks the image (UI concern) → `ScanRequested(bytes)` → bloc base64-encodes → `POST /v1/scan` → matches land as `UnitDraftLine`s at `default_variant_id` with `detected_quantity` pre-filled; unmatched become pre-filled misc lines. Failures degrade per §4: `scanStatus.failed` + the server's friendly 429/504 message as a toast — the draft and the manual on-ramp are untouched. "Scan more" on the builder reuses the same event.
+
+### Settle (§12)
+
+"Paying now" pre-fills the bill total (cash sale = one tap). Customer picker reads the **frozen** `CustomersBloc` through its public API (read-only reuse, like the backend reuses `customerRepo`). Walk-in + paying ≠ total → the server's 409 message surfaces inline via `_serverMessageOr`, not a generic toast. On 201: reset the builder, `BillsLoadRequested`, `go('/home/bills')` — the new bill is at the top of the list.
+
+### Frozen-feature reuse (all read-only)
+
+- `InventoryBloc` items feed the add-item sheet; the sheet builds its own **local** `ItemSearchIndex.build(items)` and queries it locally — never writes to inventory's `searchQuery`, so the Inventory tab's visible list can't be disturbed.
+- Customer picker mirrors the trick with a local `CustomerSearchIndex`.
+- `Item` / `UnitItem` / `LooseItem` / `ItemVariant` entities ride through scan results and draft lines unchanged — no parallel item model.

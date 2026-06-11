@@ -5,7 +5,7 @@ variables:
   - name: authToken
     value: ""
   - name: customerId
-    value: 4dec0ff0-3a26-4e84-ab6d-ec0bb89decd8
+    value: 92273545-09bb-494a-9fe0-5b16cf72b06f
   - name: billId
     value: ""
   - name: scanImagePath
