@@ -35,6 +35,11 @@ func main() {
 	dashboardService := service.NewDashboardService(dashboardRepo)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 
+	// me chain (read-only profile for Settings; reads the frozen users table)
+	meRepo := repository.NewMeRepository(database)
+	meService := service.NewMeService(meRepo)
+	meHandler := handler.NewMeHandler(meService)
+
 	// customer chain
 	customerRepo := repository.NewCustomerRepository(database)
 	customerService := service.NewCustomerService(customerRepo)
@@ -81,6 +86,8 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.RequireAuth)
 		r.Get("/v1/dashboard/summary", dashboardHandler.GetSummary)
+
+		r.Get("/v1/me", meHandler.Get)
 
 		r.Post("/v1/customers", customerHandler.Create)
 		r.Get("/v1/customers", customerHandler.List)
