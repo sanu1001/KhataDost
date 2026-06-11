@@ -138,6 +138,13 @@ class NavigationCubit extends Cubit<NavigationState> {
     emit(state.pushed(AppRoutes.settings));
   }
 
+  /// Settings → "Change password" tile → the (placeholder) change-password
+  /// page, pushed on top of /settings.
+  void pushChangePassword() {
+    _router.push(AppRoutes.settingsChangePassword);
+    emit(state.pushed(AppRoutes.settingsChangePassword));
+  }
+
   // ── Customers ─────────────────────────────────────────────────────────────
 
   void pushAddCustomer() {

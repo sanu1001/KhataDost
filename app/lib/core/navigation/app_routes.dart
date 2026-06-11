@@ -46,4 +46,6 @@ abstract class AppRoutes {
 
 // ── Settings (top-level, outside shell) ───────────────────────────────────
   static const String settings = '/settings';
+  // Change Password (placeholder sub-section, child of /settings).
+  static const String settingsChangePassword = '/settings/change-password';
 }

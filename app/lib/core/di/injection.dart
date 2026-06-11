@@ -26,6 +26,13 @@ import '../../features/dashboard/data/repositories/dashboard_repository_impl.dar
 import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 
+import '../../features/settings/data/datasources/settings_datasource.dart';
+// import '../../features/settings/data/datasources/settings_mock_datasource.dart';
+import '../../features/settings/data/datasources/settings_remote_datasource.dart';
+import '../../features/settings/data/repositories/settings_repository_impl.dart';
+import '../../features/settings/domain/repositories/settings_repository.dart';
+import '../../features/settings/presentation/bloc/settings_bloc.dart';
+
 import '../../features/inventory/data/datasources/inventory_datasource.dart';
 // import '../../features/inventory/data/datasources/inventory_mock_datasource.dart';
 import '../../features/inventory/data/repositories/inventory_repository_impl.dart';
@@ -112,6 +119,14 @@ Future<void> setupDependencies() async {
     DashboardRemoteDataSource(getIt<DioClient>()),
   );
 
+  /// Settings Datasources ---------------- (real; comment-swap to roll back to mock)
+  // getIt.registerSingleton<SettingsDataSource>(
+  //   const SettingsMockDatasource(),
+  // );
+  getIt.registerSingleton<SettingsDataSource>(
+    SettingsRemoteDataSource(getIt<DioClient>()),
+  );
+
   /// Customer Datasources ----------------
   // getIt.registerSingleton<CustomerDatasource>(
   //   CustomerMockDatasource(),
@@ -166,6 +181,10 @@ Future<void> setupDependencies() async {
     DashboardRepositoryImpl(datasource: getIt<DashboardDataSource>()),
   );
 
+  getIt.registerSingleton<SettingsRepository>(
+    SettingsRepositoryImpl(getIt<SettingsDataSource>()),
+  );
+
   getIt.registerSingleton<CustomerRepository>(
     CustomerRepositoryImpl(getIt<CustomerDatasource>()),
   );
@@ -193,6 +212,10 @@ Future<void> setupDependencies() async {
 
   getIt.registerSingleton<DashboardBloc>(
     DashboardBloc(repository: getIt<DashboardRepository>()),
+  );
+
+  getIt.registerSingleton<SettingsBloc>(
+    SettingsBloc(repository: getIt<SettingsRepository>()),
   );
 
   getIt.registerSingleton<CustomersBloc>(

@@ -9,6 +9,7 @@ import 'package:khata_dost/features/inventory/presentation/pages/inventory_page.
 
 import '../../features/inventory/presentation/bloc/inventory_bloc.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/settings/change_password/presentation/pages/change_password_page.dart';
 import '../navigation/app_routes.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
 import '../../features/auth/bloc/auth_state.dart';
@@ -239,6 +240,14 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.settings,
         builder: (_, __) => const SettingsPage(),
+        routes: [
+          // Placeholder change-password flow — its own bloc, provided locally
+          // inside the page (not GetIt). → /settings/change-password
+          GoRoute(
+            path: 'change-password',
+            builder: (_, __) => const ChangePasswordPage(),
+          ),
+        ],
       ),
     ],
   );
