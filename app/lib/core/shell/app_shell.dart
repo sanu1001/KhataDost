@@ -18,7 +18,10 @@ class AppShell extends StatelessWidget {
     return Scaffold(
       body: navigationShell,
       floatingActionButton: FloatingActionButton(
-        onPressed: () => debugPrint('Scan FAB tapped'),
+        // Scan on-ramp: jump to the bill builder (Bills branch) with the
+        // capture sheet auto-opened. The shell only NAVIGATES — it never
+        // touches the billing bloc itself.
+        onPressed: () => context.read<NavigationCubit>().goToScanBill(),
         shape: const CircleBorder(),
         child: const Icon(Icons.qr_code_scanner),
       ),

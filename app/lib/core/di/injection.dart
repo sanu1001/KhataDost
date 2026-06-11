@@ -27,10 +27,23 @@ import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 
 import '../../features/inventory/data/datasources/inventory_datasource.dart';
-import '../../features/inventory/data/datasources/inventory_mock_datasource.dart';
+// import '../../features/inventory/data/datasources/inventory_mock_datasource.dart';
 import '../../features/inventory/data/repositories/inventory_repository_impl.dart';
 import '../../features/inventory/domain/repository/inventory_repository.dart';
 import '../../features/inventory/presentation/bloc/inventory_bloc.dart';
+
+import '../../features/bills/data/datasources/billing_datasource.dart';
+// import '../../features/bills/data/datasources/billing_mock_datasource.dart';
+import '../../features/bills/data/datasources/billing_remote_datasource.dart';
+import '../../features/bills/data/datasources/scan_datasource.dart';
+// import '../../features/bills/data/datasources/scan_mock_datasource.dart';
+import '../../features/bills/data/datasources/scan_remote_datasource.dart';
+import '../../features/bills/data/repositories/billing_repository_impl.dart';
+import '../../features/bills/data/repositories/scan_repository_impl.dart';
+import '../../features/bills/domain/repositories/billing_repository.dart';
+import '../../features/bills/domain/repositories/scan_repository.dart';
+import '../../features/bills/presentation/bloc/bill_builder_bloc.dart';
+import '../../features/bills/presentation/bloc/bills_bloc.dart';
 
 /// The global GetIt service locator.
 /// Import this anywhere you need a registered instance outside the widget tree.
@@ -109,6 +122,22 @@ Future<void> setupDependencies() async {
     InventoryRemoteDataSource(getIt<DioClient>()),  // swap in when backend is wired
   );
 
+  /// Billing Datasources ---------------- (real; comment-swap to roll back to mock)
+  // getIt.registerSingleton<BillingDatasource>(
+  //   BillingMockDatasource(),
+  // );
+  getIt.registerSingleton<BillingDatasource>(
+    BillingRemoteDatasource(getIt<DioClient>()),
+  );
+
+  /// Scan Datasources ---------------- (real; comment-swap to roll back to mock)
+  // getIt.registerSingleton<ScanDatasource>(
+  //   ScanMockDatasource(),
+  // );
+  getIt.registerSingleton<ScanDatasource>(
+    ScanRemoteDatasource(getIt<DioClient>()),
+  );
+
   // ── 4. Repositories ────────────────────────────────────────────────────────
   // Registered as the ABSTRACT type [AuthRepository].
   // The BLoC never knows the concrete impl exists.
@@ -130,6 +159,14 @@ Future<void> setupDependencies() async {
     InventoryRepositoryImpl(getIt<InventoryDatasource>()),
   );
 
+  getIt.registerSingleton<BillingRepository>(
+    BillingRepositoryImpl(getIt<BillingDatasource>()),
+  );
+
+  getIt.registerSingleton<ScanRepository>(
+    ScanRepositoryImpl(getIt<ScanDatasource>()),
+  );
+
   // ── 5. BLoC ────────────────────────────────────────────────────────────────
   getIt.registerSingleton<AuthBloc>(
     AuthBloc(repository: getIt<AuthRepository>()),
@@ -145,6 +182,20 @@ Future<void> setupDependencies() async {
 
   getIt.registerSingleton<InventoryBloc>(
     InventoryBloc(getIt<InventoryRepository>()),
+  );
+
+  // ONE draft bill app-wide: the FAB's scan flow and the Bills tab's
+  // manual flow both pull THIS instance (provided per-route, never
+  // hoisted to the shell).
+  getIt.registerSingleton<BillBuilderBloc>(
+    BillBuilderBloc(
+      billingRepository: getIt<BillingRepository>(),
+      scanRepository: getIt<ScanRepository>(),
+    ),
+  );
+
+  getIt.registerSingleton<BillsBloc>(
+    BillsBloc(getIt<BillingRepository>()),
   );
 
   // ── 6. Router ──────────────────────────────────────────────────────────────

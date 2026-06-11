@@ -35,6 +35,12 @@ abstract class AppRoutes {
   static String inventoryDetailPath(String id) => '/home/inventory/$id';
   static String inventoryEditPath(String id) => '/home/inventory/$id/edit';
 
+  // ── Billing (inside the Bills branch) ─────────────────────────────────────
+  static const String billsNew = '/home/bills/new';
+  static const String billsSettle = '/home/bills/new/settle';
+  // FAB path: same builder route, but auto-opens the capture sheet.
+  static String billsNewScanPath() => '$billsNew?scan=1';
+
 
 // ── Settings (top-level, outside shell) ───────────────────────────────────
   static const String settings = '/settings';

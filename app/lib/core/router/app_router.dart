@@ -30,6 +30,11 @@ import '../../features/customers/presentation/pages/customer_form_page.dart';
 import '../../features/inventory/presentation/pages/item_detail_page.dart';
 import '../../features/inventory/presentation/pages/item_form_page.dart';
 
+import '../../features/bills/presentation/bloc/bill_builder_bloc.dart';
+import '../../features/bills/presentation/bloc/bills_bloc.dart';
+import '../../features/bills/presentation/pages/bill_builder_page.dart';
+import '../../features/bills/presentation/pages/settle_page.dart';
+
 
 class AppRouter {
   AppRouter({required AuthBloc authBloc}) : _authBloc = authBloc;
@@ -74,11 +79,51 @@ class AppRouter {
           ),
 
           // Branch 1 — Bills
+          // Sub-routes (new / new/settle) push WITHIN this branch.
+          // Every billing route pulls the SAME GetIt singletons, so the
+          // FAB's scan path and the manual "+" path share ONE draft bill.
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: AppRoutes.bills,
-                builder: (_, __) => const BillsPage(),
+                builder: (_, __) => BlocProvider.value(
+                  value: GetIt.I<BillsBloc>(),
+                  child: const BillsPage(),
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'new', // relative → /home/bills/new
+                    builder: (_, state) => MultiBlocProvider(
+                      providers: [
+                        BlocProvider.value(value: GetIt.I<BillBuilderBloc>()),
+                        // Manual on-ramp searches inventory (read-only).
+                        BlocProvider.value(value: GetIt.I<InventoryBloc>()),
+                      ],
+                      child: BillBuilderPage(
+                        // FAB path arrives as ?scan=1 → auto-open capture.
+                        scanOnOpen:
+                            state.uri.queryParameters['scan'] == '1',
+                      ),
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'settle', // → /home/bills/new/settle
+                        builder: (_, __) => MultiBlocProvider(
+                          providers: [
+                            BlocProvider.value(
+                                value: GetIt.I<BillBuilderBloc>()),
+                            // Customer picker (read-only reuse).
+                            BlocProvider.value(
+                                value: GetIt.I<CustomersBloc>()),
+                            // Refreshed after a successful settle.
+                            BlocProvider.value(value: GetIt.I<BillsBloc>()),
+                          ],
+                          child: const SettlePage(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
