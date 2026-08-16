@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/navigation/navigation_cubit.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../domain/entities/item.dart';
 import '../bloc/inventory_bloc.dart';
 import 'widgets/variant_row.dart';
@@ -121,9 +122,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
     if (!widget.isEditMode &&
         _pricingType == 'unit' &&
         _variants.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one variant')),
-      );
+      AppSnackbar.error(context, 'Add at least one variant');
       return;
     }
 
@@ -136,6 +135,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
             : null,
         unit: _pricingType == 'loose' ? _unitCtrl.text.trim() : null,
       ));
+      AppSnackbar.success(context, 'Changes saved');
     } else {
       context.read<InventoryBloc>().add(ItemAdded(
         name: _nameCtrl.text.trim(),
@@ -149,6 +149,7 @@ class _ItemFormPageState extends State<ItemFormPage> {
             ? _unitCtrl.text.trim()
             : null,
       ));
+      AppSnackbar.success(context, '"${_nameCtrl.text.trim()}" added');
     }
     context.read<NavigationCubit>().goBack();
   }
@@ -165,7 +166,9 @@ class _ItemFormPageState extends State<ItemFormPage> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          // Bottom inset clears the shell's floating glass bar (extendBody).
+          padding: EdgeInsets.fromLTRB(
+              16, 16, 16, MediaQuery.paddingOf(context).bottom + 16),
           children: [
             // Pricing type — interactive toggle in add mode, badge in edit
             if (!widget.isEditMode) ...[
@@ -217,22 +220,22 @@ class _ItemFormPageState extends State<ItemFormPage> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.primary.withOpacity(0.20),
-                  ),
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: AppColors.primaryBorder),
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.info_outline,
-                        size: 16, color: AppColors.primary),
+                    Icon(Icons.info_outline_rounded,
+                        size: 17, color: AppColors.primary),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Edit, add, or remove variants from the item detail page.',
                         style: TextStyle(
-                            fontSize: 13, color: AppColors.primary),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.primary),
                       ),
                     ),
                   ],
@@ -273,7 +276,9 @@ class _PricingTypeToggle extends StatelessWidget {
       children: [
         const Text('Pricing type',
             style: TextStyle(
-                fontSize: 13, color: AppColors.textSecondary)),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary)),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -316,15 +321,15 @@ class _TypeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
         padding:
         const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primary.withOpacity(0.10)
-              : AppColors.cardBg,
-          borderRadius: BorderRadius.circular(12),
+          color: selected ? AppColors.primarySurface : AppColors.cardBg,
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? AppColors.primary : AppColors.divider,
             width: selected ? 1.5 : 1,
@@ -343,8 +348,8 @@ class _TypeChip extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: selected
-                      ? FontWeight.w600
-                      : FontWeight.normal,
+                      ? FontWeight.w700
+                      : FontWeight.w500,
                   color: selected
                       ? AppColors.primary
                       : AppColors.textSecondary,
@@ -370,7 +375,7 @@ class _EditTypeBadge extends StatelessWidget {
       const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.divider),
       ),
       child: Row(
@@ -386,7 +391,9 @@ class _EditTypeBadge extends StatelessWidget {
           Text(
             isUnit ? 'Unit / Packaged' : 'Loose / Weight',
             style: const TextStyle(
-                fontSize: 13.5, color: AppColors.textSecondary),
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary),
           ),
           const Spacer(),
           const Text('Cannot change',
@@ -423,13 +430,13 @@ class _VariantsSection extends StatelessWidget {
             const Text('Variants',
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textSecondary,
                 )),
             const Spacer(),
             TextButton.icon(
               onPressed: onAdd,
-              icon: const Icon(Icons.add, size: 16),
+              icon: const Icon(Icons.add_rounded, size: 17),
               label: const Text('Add variant'),
             ),
           ],

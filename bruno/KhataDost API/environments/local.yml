@@ -4,3 +4,9 @@ variables:
     value: http://localhost:8080
   - name: authToken
     value: ""
+  - name: customerId
+    value: 92273545-09bb-494a-9fe0-5b16cf72b06f
+  - name: billId
+    value: ""
+  - name: scanImagePath
+    value: D:\Programming_W\todoINSPO\bill-photo.jpg

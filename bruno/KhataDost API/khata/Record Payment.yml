@@ -1,0 +1,34 @@
+info:
+  name: Record Payment
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/khata/{{customerId}}/payment"
+  body:
+    type: json
+    data: |-
+      {
+        "amount": 100
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // Expect 201, type = 'payment', amount = 100, bill_id = null.
+        // After this call, run "Get Khata" again — balance should drop by 100
+        // and a new 'payment' entry should appear at the bottom of entries.
+        const json = res.getBody();
+        console.log("Status:", res.getStatus());
+        console.log("Entry type:", json.type, "Amount:", json.amount);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

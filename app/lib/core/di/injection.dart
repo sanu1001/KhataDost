@@ -26,11 +26,38 @@ import '../../features/dashboard/data/repositories/dashboard_repository_impl.dar
 import '../../features/dashboard/domain/repositories/dashboard_repository.dart';
 import '../../features/dashboard/presentation/bloc/dashboard_bloc.dart';
 
+import '../../features/settings/data/datasources/settings_datasource.dart';
+// import '../../features/settings/data/datasources/settings_mock_datasource.dart';
+import '../../features/settings/data/datasources/settings_remote_datasource.dart';
+import '../../features/settings/data/repositories/settings_repository_impl.dart';
+import '../../features/settings/domain/repositories/settings_repository.dart';
+import '../../features/settings/presentation/bloc/settings_bloc.dart';
+
 import '../../features/inventory/data/datasources/inventory_datasource.dart';
-import '../../features/inventory/data/datasources/inventory_mock_datasource.dart';
+// import '../../features/inventory/data/datasources/inventory_mock_datasource.dart';
 import '../../features/inventory/data/repositories/inventory_repository_impl.dart';
 import '../../features/inventory/domain/repository/inventory_repository.dart';
 import '../../features/inventory/presentation/bloc/inventory_bloc.dart';
+
+import '../../features/bills/data/datasources/billing_datasource.dart';
+// import '../../features/bills/data/datasources/billing_mock_datasource.dart';
+import '../../features/bills/data/datasources/billing_remote_datasource.dart';
+import '../../features/bills/data/datasources/scan_datasource.dart';
+// import '../../features/bills/data/datasources/scan_mock_datasource.dart';
+import '../../features/bills/data/datasources/scan_remote_datasource.dart';
+import '../../features/bills/data/repositories/billing_repository_impl.dart';
+import '../../features/bills/data/repositories/scan_repository_impl.dart';
+import '../../features/bills/domain/repositories/billing_repository.dart';
+import '../../features/bills/domain/repositories/scan_repository.dart';
+import '../../features/bills/presentation/bloc/bill_builder_bloc.dart';
+import '../../features/bills/presentation/bloc/bills_bloc.dart';
+
+import '../../features/khata/data/datasources/khata_datasource.dart';
+// import '../../features/khata/data/datasources/khata_mock_datasource.dart';
+import '../../features/khata/data/datasources/khata_remote_datasource.dart';
+import '../../features/khata/data/repositories/khata_repository_impl.dart';
+import '../../features/khata/domain/repositories/khata_repository.dart';
+import '../../features/khata/presentation/bloc/khata_bloc.dart';
 
 /// The global GetIt service locator.
 /// Import this anywhere you need a registered instance outside the widget tree.
@@ -92,6 +119,14 @@ Future<void> setupDependencies() async {
     DashboardRemoteDataSource(getIt<DioClient>()),
   );
 
+  /// Settings Datasources ---------------- (real; comment-swap to roll back to mock)
+  // getIt.registerSingleton<SettingsDataSource>(
+  //   const SettingsMockDatasource(),
+  // );
+  getIt.registerSingleton<SettingsDataSource>(
+    SettingsRemoteDataSource(getIt<DioClient>()),
+  );
+
   /// Customer Datasources ----------------
   // getIt.registerSingleton<CustomerDatasource>(
   //   CustomerMockDatasource(),
@@ -109,6 +144,30 @@ Future<void> setupDependencies() async {
     InventoryRemoteDataSource(getIt<DioClient>()),  // swap in when backend is wired
   );
 
+  /// Billing Datasources ---------------- (real; comment-swap to roll back to mock)
+  // getIt.registerSingleton<BillingDatasource>(
+  //   BillingMockDatasource(),
+  // );
+  getIt.registerSingleton<BillingDatasource>(
+    BillingRemoteDatasource(getIt<DioClient>()),
+  );
+
+  /// Scan Datasources ---------------- (real; comment-swap to roll back to mock)
+  // getIt.registerSingleton<ScanDatasource>(
+  //   ScanMockDatasource(),
+  // );
+  getIt.registerSingleton<ScanDatasource>(
+    ScanRemoteDatasource(getIt<DioClient>()),
+  );
+
+  /// Khata Datasources ---------------- (real; comment-swap to roll back to mock)
+  // getIt.registerSingleton<KhataDatasource>(
+  //   KhataMockDatasource(),
+  // );
+  getIt.registerSingleton<KhataDatasource>(
+    KhataRemoteDatasource(getIt<DioClient>()),
+  );
+
   // ── 4. Repositories ────────────────────────────────────────────────────────
   // Registered as the ABSTRACT type [AuthRepository].
   // The BLoC never knows the concrete impl exists.
@@ -122,12 +181,28 @@ Future<void> setupDependencies() async {
     DashboardRepositoryImpl(datasource: getIt<DashboardDataSource>()),
   );
 
+  getIt.registerSingleton<SettingsRepository>(
+    SettingsRepositoryImpl(getIt<SettingsDataSource>()),
+  );
+
   getIt.registerSingleton<CustomerRepository>(
     CustomerRepositoryImpl(getIt<CustomerDatasource>()),
   );
 
   getIt.registerSingleton<InventoryRepository>(
     InventoryRepositoryImpl(getIt<InventoryDatasource>()),
+  );
+
+  getIt.registerSingleton<BillingRepository>(
+    BillingRepositoryImpl(getIt<BillingDatasource>()),
+  );
+
+  getIt.registerSingleton<ScanRepository>(
+    ScanRepositoryImpl(getIt<ScanDatasource>()),
+  );
+
+  getIt.registerSingleton<KhataRepository>(
+    KhataRepositoryImpl(getIt<KhataDatasource>()),
   );
 
   // ── 5. BLoC ────────────────────────────────────────────────────────────────
@@ -139,12 +214,41 @@ Future<void> setupDependencies() async {
     DashboardBloc(repository: getIt<DashboardRepository>()),
   );
 
+  getIt.registerSingleton<SettingsBloc>(
+    SettingsBloc(repository: getIt<SettingsRepository>()),
+  );
+
   getIt.registerSingleton<CustomersBloc>(
     CustomersBloc(getIt<CustomerRepository>()),
   );
 
   getIt.registerSingleton<InventoryBloc>(
     InventoryBloc(getIt<InventoryRepository>()),
+  );
+
+  // ONE draft bill app-wide: the FAB's scan flow and the Bills tab's
+  // manual flow both pull THIS instance (provided per-route, never
+  // hoisted to the shell).
+  getIt.registerSingleton<BillBuilderBloc>(
+    BillBuilderBloc(
+      billingRepository: getIt<BillingRepository>(),
+      scanRepository: getIt<ScanRepository>(),
+    ),
+  );
+
+  getIt.registerSingleton<BillsBloc>(
+    BillsBloc(getIt<BillingRepository>()),
+  );
+
+  // ONE ledger view app-wide, provided per-route in the customers branch.
+  // BillingRepository is READ-ONLY reuse (getBillById for the items
+  // sheet) — same pattern as the backend khata service reusing the
+  // frozen customer repo.
+  getIt.registerSingleton<KhataBloc>(
+    KhataBloc(
+      khataRepository: getIt<KhataRepository>(),
+      billingRepository: getIt<BillingRepository>(),
+    ),
   );
 
   // ── 6. Router ──────────────────────────────────────────────────────────────

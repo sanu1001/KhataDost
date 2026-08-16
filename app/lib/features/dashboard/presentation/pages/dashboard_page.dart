@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../../core/navigation/navigation_cubit.dart';
 import '../../../../core/navigation/navigation_state.dart';
+import '../../../../core/shell/shell_actions.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../domain/entities/dashboard_summary.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
-import '../../../../core/shell/shell_actions.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -18,6 +21,10 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  /// Local, UI-only: tap the eye on the sales card to hide the figure
+  /// from customers peeking at the counter screen.
+  bool _hideAmount = false;
+
   void _requestLoad() {
     context.read<DashboardBloc>().add(const DashboardLoadRequested());
   }
@@ -28,27 +35,82 @@ class _DashboardPageState extends State<DashboardPage> {
     _requestLoad();
   }
 
+  /// Placeholder payload rendered under the shimmer on first load.
+  static final _skeletonSummary = DashboardSummary(
+    todaySales: 12450,
+    recentBills: List.generate(
+      3,
+      (i) => RecentBill(
+        id: 'skeleton-$i',
+        customerName: 'Customer name',
+        amount: 540,
+        createdAt: DateTime.now(),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    final shopName = context.read<AuthBloc>().state.user?.shopName ?? '';
+    final name = context.read<AuthBloc>().state.user?.name ?? '';
 
     return BlocListener<NavigationCubit, NavigationState>(
       // Only fire when:
       // 1. Home tab (index 0) is the active tab
       // 2. refreshTick actually changed (re-tap happened)
       listenWhen: (prev, curr) =>
-      curr.activeTabIndex == 0 && prev.refreshTick != curr.refreshTick,
+          curr.activeTabIndex == 0 && prev.refreshTick != curr.refreshTick,
       listener: (context, _) => _requestLoad(),
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('KhataDost'),
           centerTitle: false,
+          titleSpacing: 20,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Welcome',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                name.isEmpty ? 'KhataDost' : name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
           actions: const [ShellActions()],
         ),
+        // bottom: false — the shell's floating glass bar overlays the page;
+        // the scroll view pads itself past it so content scrolls beneath.
         body: SafeArea(
-          child: BlocBuilder<DashboardBloc, DashboardState>(
+          bottom: false,
+          child: BlocConsumer<DashboardBloc, DashboardState>(
+            // Refresh failed but we still have data on screen → toast it.
+            listenWhen: (prev, curr) =>
+                curr.hasError && curr.summary != null && !prev.hasError,
+            listener: (context, state) => AppSnackbar.error(
+              context,
+              state.errorMessage ?? 'Could not refresh dashboard.',
+            ),
             builder: (context, state) {
+              // Shimmer on EVERY fetch — first load, tab re-tap, and
+              // pull-to-refresh all read as activity (Instagram-style).
+              final showSkeleton = state.isLoading;
+              final summary = state.summary ?? _skeletonSummary;
+
               return RefreshIndicator(
+                color: AppColors.primary,
                 // Pull-to-refresh: same event, independent trigger path.
                 onRefresh: () async {
                   _requestLoad();
@@ -58,35 +120,40 @@ class _DashboardPageState extends State<DashboardPage> {
                       .stream
                       .firstWhere((s) => !s.isLoading);
                 },
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _GreetingSection(
-                        shopName: shopName,
-                        isLoading: state.isLoading && state.summary == null,
-                      ),
-                      const SizedBox(height: 24),
-                      _TodaysSalesCard(
-                        amount: state.summary?.todaySales,
-                        isLoading: state.isLoading,
-                      ),
-                      const SizedBox(height: 28),
-                      _RecentBillsSection(
-                        bills: state.summary?.recentBills ?? const [],
-                        isLoading: state.isLoading,
-                      ),
-                      if (state.hasError) ...[
-                        const SizedBox(height: 20),
-                        _ErrorBanner(
-                          message: state.errorMessage ?? 'Failed to load.',
+                child: state.hasError && state.summary == null
+                    ? _FullErrorBody(
+                        message: state.errorMessage,
+                        onRetry: _requestLoad,
+                      )
+                    : Skeletonizer(
+                        enabled: showSkeleton,
+                        effect: const ShimmerEffect(
+                          baseColor: AppColors.surfaceVariant,
+                          highlightColor: AppColors.cardBg,
                         ),
-                      ],
-                    ],
-                  ),
-                ),
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          // Clears the floating glass bar (extendBody inset).
+                          padding: EdgeInsets.fromLTRB(20, 8, 20,
+                              MediaQuery.paddingOf(context).bottom + 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Skeleton.shade(
+                                child: _TodaysSalesCard(
+                                  amount: summary.todaySales,
+                                  hidden: _hideAmount,
+                                  onToggleHidden: () => setState(
+                                    () => _hideAmount = !_hideAmount,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 26),
+                              _RecentBillsSection(bills: summary.recentBills),
+                            ],
+                          ),
+                        ),
+                      ),
               );
             },
           ),
@@ -96,60 +163,91 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-// ─── Section 1: Greeting ─────────────────────────────────────────────────────
+// ─── Today's sales — gradient hero card ──────────────────────────────────────
 
-class _GreetingSection extends StatelessWidget {
-  const _GreetingSection({
-    required this.shopName,
-    required this.isLoading,
+class _TodaysSalesCard extends StatelessWidget {
+  const _TodaysSalesCard({
+    required this.amount,
+    required this.hidden,
+    required this.onToggleHidden,
   });
 
-  final String shopName;
-  final bool isLoading;
+  final double amount;
+  final bool hidden;
+  final VoidCallback onToggleHidden;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    if (isLoading) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          _Skeleton(width: 220, height: 28),
-          SizedBox(height: 8),
-          _Skeleton(width: 140, height: 14),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 14, 20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.gradientStart, AppColors.gradientEnd],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x337C3AED),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
         ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          _greetingFor(DateTime.now(), shopName),
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Today's Sales",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.85),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  hidden ? '₹ ••••••' : formatInr(amount),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _todayLabel(DateTime.now()),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.7),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          _todayLabel(DateTime.now()),
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+          IconButton(
+            onPressed: onToggleHidden,
+            tooltip: hidden ? 'Show amount' : 'Hide amount',
+            icon: Icon(
+              hidden
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: Colors.white.withOpacity(.9),
+              size: 22,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
-  }
-
-  static String _greetingFor(DateTime now, String shopName) {
-    final hour = now.hour;
-    final part = hour < 12
-        ? 'Good morning'
-        : hour < 17
-            ? 'Good afternoon'
-            : 'Good evening';
-    return shopName.isEmpty ? part : '$part, $shopName';
   }
 
   static String _todayLabel(DateTime now) {
@@ -157,99 +255,68 @@ class _GreetingSection extends StatelessWidget {
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
-    return '${now.day} ${months[now.month - 1]} ${now.year}';
+    return "${now.day} ${months[now.month - 1]} ${now.year}";
   }
 }
 
-// ─── Section 2: Today's sales ────────────────────────────────────────────────
-
-class _TodaysSalesCard extends StatelessWidget {
-  const _TodaysSalesCard({required this.amount, required this.isLoading});
-
-  final double? amount;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
-      decoration: BoxDecoration(
-        color: scheme.primaryContainer,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Today's Sales",
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: scheme.onPrimaryContainer.withOpacity(0.8),
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (isLoading)
-            const _Skeleton(width: 180, height: 36)
-          else
-            Text(
-              _formatInr(amount ?? 0),
-              style: theme.textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: scheme.onPrimaryContainer,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Section 3: Recent bills ─────────────────────────────────────────────────
+// ─── Recent bills ────────────────────────────────────────────────────────────
 
 class _RecentBillsSection extends StatelessWidget {
-  const _RecentBillsSection({required this.bills, required this.isLoading});
+  const _RecentBillsSection({required this.bills});
 
   final List<RecentBill> bills;
-  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 12),
           child: Text(
-            'Recent bills',
-            style: theme.textTheme.titleMedium?.copyWith(
+            'Recent Transactions',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
             ),
           ),
         ),
-        if (isLoading)
-          Column(
-            children: List.generate(
-              3,
-              (_) => const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: _BillRowSkeleton(),
-              ),
+        if (bills.isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+            decoration: BoxDecoration(
+              color: AppColors.cardBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.divider),
             ),
-          )
-        else if (bills.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 4),
-            child: Text(
-              'No bills yet',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+            child: const Column(
+              children: [
+                Icon(
+                  Icons.receipt_long_outlined,
+                  size: 30,
+                  color: AppColors.textHint,
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'No bills yet today',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Tap the scan button below to make your first bill.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
             ),
           )
         else
@@ -271,35 +338,37 @@ class _BillRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         children: [
+          _InitialsAvatar(name: bill.customerName),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   bill.customerName,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _timeAgo(bill.createdAt),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                  timeAgo(bill.createdAt),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -307,8 +376,10 @@ class _BillRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Text(
-            _formatInr(bill.amount),
-            style: theme.textTheme.titleMedium?.copyWith(
+            '+${formatInr(bill.amount)}',
+            style: const TextStyle(
+              color: AppColors.success,
+              fontSize: 14.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -318,93 +389,107 @@ class _BillRow extends StatelessWidget {
   }
 }
 
-class _BillRowSkeleton extends StatelessWidget {
-  const _BillRowSkeleton();
+class _InitialsAvatar extends StatelessWidget {
+  const _InitialsAvatar({required this.name});
+
+  final String name;
 
   @override
   Widget build(BuildContext context) {
+    final parts =
+        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    String initials = '?';
+    if (parts.isNotEmpty) {
+      initials = parts.length >= 2
+          ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
+          : parts[0][0].toUpperCase();
+    }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withOpacity(0.4),
-        borderRadius: BorderRadius.circular(12),
+      width: 42,
+      height: 42,
+      decoration: const BoxDecoration(
+        color: AppColors.primarySurface,
+        shape: BoxShape.circle,
       ),
-      child: Row(
-        children: const [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _Skeleton(width: 120, height: 16),
-                SizedBox(height: 8),
-                _Skeleton(width: 70, height: 12),
-              ],
-            ),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: AppColors.primary,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
           ),
-          SizedBox(width: 12),
-          _Skeleton(width: 64, height: 18),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ─── Skeleton primitive ──────────────────────────────────────────────────────
-// Lightweight stand-in for Skeletonizer (which is not in pubspec yet).
-// Swap this widget out once `skeletonizer` is added — the rest of the page
-// already structures content for an easy upgrade.
+// ─── Full-body load failure ──────────────────────────────────────────────────
 
-class _Skeleton extends StatelessWidget {
-  const _Skeleton({required this.width, required this.height});
+class _FullErrorBody extends StatelessWidget {
+  const _FullErrorBody({required this.message, required this.onRetry});
 
-  final double width;
-  final double height;
+  final String? message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(6),
-      ),
-    );
-  }
-}
-
-// ─── Error banner ────────────────────────────────────────────────────────────
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.error_outline, size: 18, color: scheme.onErrorContainer),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: scheme.onErrorContainer, fontSize: 13),
+    // ListView so pull-to-refresh keeps working on the error body too.
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 80),
+        Column(
+          children: [
+            Container(
+              width: 76,
+              height: 76,
+              decoration: const BoxDecoration(
+                color: AppColors.errorSurface,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.cloud_off_rounded,
+                size: 34,
+                color: AppColors.error,
+              ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 18),
+            const Text(
+              'Could not load your dashboard',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(
+                message ?? 'Please check your connection and try again.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13.5,
+                  height: 1.45,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: onRetry,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 46),
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+              ),
+              icon: const Icon(Icons.refresh_rounded, size: 20),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -412,7 +497,7 @@ class _ErrorBanner extends StatelessWidget {
 // ─── Formatting helpers ──────────────────────────────────────────────────────
 
 /// Indian rupee with lakhs/crores commas. ₹3450 → ₹3,450 · ₹123456 → ₹1,23,456
-String _formatInr(double amount) {
+String formatInr(double amount) {
   final n = amount.round();
   final s = n.toString();
   if (s.length <= 3) return '₹$s';
@@ -426,7 +511,7 @@ String _formatInr(double amount) {
 }
 
 /// Short relative time: "just now", "12 minutes ago", "2 hours ago", "3 days ago".
-String _timeAgo(DateTime t) {
+String timeAgo(DateTime t) {
   final diff = DateTime.now().difference(t);
   if (diff.inSeconds < 60) return 'just now';
   if (diff.inMinutes < 60) {

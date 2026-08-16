@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/navigation/navigation_cubit.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../bloc/customers_bloc.dart';
 import '../bloc/customers_event.dart';
 import '../bloc/customers_state.dart';
@@ -37,11 +39,11 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
     // The bloc is already loaded by the time detail→edit push happens.
     final existing = widget.isEditMode
         ? context
-        .read<CustomersBloc>()
-        .state
-        .customers
-        .firstWhere((c) => c.id == widget.customerId,
-        orElse: () => throw StateError('Customer not in state'))
+            .read<CustomersBloc>()
+            .state
+            .customers
+            .firstWhere((c) => c.id == widget.customerId,
+                orElse: () => throw StateError('Customer not in state'))
         : null;
 
     _nameController  = TextEditingController(text: existing?.name  ?? '');
@@ -114,6 +116,10 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
         } else if (state.status == CustomersStatus.loaded) {
           // Mutation succeeded (errorMessage is null, list updated) — pop.
           setState(() => _isSubmitting = false);
+          AppSnackbar.success(
+            context,
+            widget.isEditMode ? 'Changes saved' : 'Customer added',
+          );
           context.read<NavigationCubit>().goBack();
         }
       },
@@ -135,7 +141,8 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
                   controller: _nameController,
                   decoration: const InputDecoration(
                     labelText: 'Name *',
-                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person_outline_rounded,
+                        size: 21, color: AppColors.textHint),
                   ),
                   textCapitalization: TextCapitalization.words,
                   validator: (v) => (v == null || v.trim().isEmpty)
@@ -147,7 +154,8 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
                   controller: _phoneController,
                   decoration: const InputDecoration(
                     labelText: 'Phone *',
-                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone_outlined,
+                        size: 21, color: AppColors.textHint),
                   ),
                   keyboardType: TextInputType.phone,
                   validator: (v) => (v == null || v.trim().isEmpty)
@@ -159,7 +167,8 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
                   controller: _emailController,
                   decoration: const InputDecoration(
                     labelText: 'Email (optional)',
-                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email_outlined,
+                        size: 21, color: AppColors.textHint),
                   ),
                   keyboardType: TextInputType.emailAddress,
                 ),
@@ -168,18 +177,39 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
                   controller: _notesController,
                   decoration: const InputDecoration(
                     labelText: 'Notes (optional)',
-                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
                   ),
                   maxLines: 3,
                 ),
                 // Inline submission error (mutation failed).
                 if (_submitError != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _submitError!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                      fontSize: 13,
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 11),
+                    decoration: BoxDecoration(
+                      color: AppColors.errorSurface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.error_rounded,
+                            size: 18, color: AppColors.error),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _submitError!,
+                            style: const TextStyle(
+                              color: AppColors.error,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -188,13 +218,16 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
                   onPressed: _isSubmitting ? null : _submit,
                   child: _isSubmitting
                       ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
                       : Text(widget.isEditMode
-                      ? 'Save changes'
-                      : 'Add customer'),
+                          ? 'Save changes'
+                          : 'Add customer'),
                 ),
               ],
             ),

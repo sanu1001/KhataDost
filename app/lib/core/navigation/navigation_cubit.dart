@@ -138,6 +138,13 @@ class NavigationCubit extends Cubit<NavigationState> {
     emit(state.pushed(AppRoutes.settings));
   }
 
+  /// Settings → "Change password" tile → the (placeholder) change-password
+  /// page, pushed on top of /settings.
+  void pushChangePassword() {
+    _router.push(AppRoutes.settingsChangePassword);
+    emit(state.pushed(AppRoutes.settingsChangePassword));
+  }
+
   // ── Customers ─────────────────────────────────────────────────────────────
 
   void pushAddCustomer() {
@@ -155,5 +162,57 @@ class NavigationCubit extends Cubit<NavigationState> {
     final path = AppRoutes.customerEditPath(id);
     _router.push(path);
     emit(state.pushed(path));
+  }
+
+  // ── Khata ─────────────────────────────────────────────────────────────────
+
+  /// Detail page's Khata tile → the customer's khata page (within the
+  /// Customers branch — bottom nav stays, back lands on the detail page).
+  void pushKhata(String customerId) {
+    final path = AppRoutes.customerKhataPath(customerId);
+    _router.push(path);
+    emit(state.pushed(path));
+  }
+
+  // ── Billing ───────────────────────────────────────────────────────────────
+
+  /// Manual on-ramp: Bills tab "+" → push the builder WITHIN branch 1.
+  void pushNewBill() {
+    _router.push(AppRoutes.billsNew);
+    emit(state.pushed(AppRoutes.billsNew));
+  }
+
+  /// Scan on-ramp: the shell's center FAB, from ANY tab.
+  /// go() (not push) — GoRouter builds the bills-branch stack
+  /// [BillsPage, BillBuilderPage] and the shell switches to branch 1, so
+  /// back from the builder lands on the Bills list. ?scan=1 makes the
+  /// builder auto-open the capture sheet. Same route family as the manual
+  /// path → same GetIt-singleton bloc → ONE shared draft.
+  void goToScanBill() {
+    _router.go(AppRoutes.billsNewScanPath());
+    emit(state.copyWith(
+      currentRoute: AppRoutes.billsNew,
+      previousRoute: state.currentRoute,
+      stack: [AppRoutes.bills, AppRoutes.billsNew],
+      activeTabIndex: 1,
+    ));
+  }
+
+  /// Builder → settle (within branch 1).
+  void pushSettle() {
+    _router.push(AppRoutes.billsSettle);
+    emit(state.pushed(AppRoutes.billsSettle));
+  }
+
+  /// After a successful settle: collapse the builder/settle stack back to
+  /// the Bills list (the fresh bill is at the top).
+  void goToBillsAfterSettle() {
+    _router.go(AppRoutes.bills);
+    emit(state.copyWith(
+      currentRoute: AppRoutes.bills,
+      previousRoute: state.currentRoute,
+      stack: [AppRoutes.bills],
+      activeTabIndex: 1,
+    ));
   }
 }

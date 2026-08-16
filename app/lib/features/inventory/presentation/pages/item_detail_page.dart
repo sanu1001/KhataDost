@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/navigation/navigation_cubit.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
+import '../../../../core/widgets/confirm_dialog.dart';
 import '../../domain/entities/item.dart';
 import '../bloc/inventory_bloc.dart';
 
@@ -42,7 +44,7 @@ class _DetailView extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_outlined),
+            icon: const Icon(Icons.edit_outlined, size: 22),
             tooltip: 'Edit item',
             onPressed: () =>
                 context.read<NavigationCubit>().pushItemEdit(item.id),
@@ -50,7 +52,9 @@ class _DetailView extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        // Bottom inset clears the shell's floating glass bar (extendBody).
+        padding: EdgeInsets.fromLTRB(
+            16, 16, 16, MediaQuery.paddingOf(context).bottom + 16),
         children: [
           _TypeBadge(item: item),
           const SizedBox(height: 16),
@@ -70,11 +74,13 @@ class _DetailView extends StatelessWidget {
           const SizedBox(height: 32),
           OutlinedButton.icon(
             onPressed: () => _confirmDelete(context),
-            icon: const Icon(Icons.delete_outline, color: AppColors.error),
+            icon: const Icon(Icons.delete_outline_rounded,
+                size: 20, color: AppColors.error),
             label: const Text('Delete item',
                 style: TextStyle(color: AppColors.error)),
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.error),
+              backgroundColor: AppColors.errorSurface,
+              side: const BorderSide(color: Color(0xFFFECACA), width: 1.5),
               minimumSize: const Size(double.infinity, 52),
             ),
           ),
@@ -84,31 +90,20 @@ class _DetailView extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context) {
-    showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Delete item?'),
-        content: Text(
-            'Remove "${item.name}" from your price book. This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete',
-                style: TextStyle(color: AppColors.error)),
-          ),
-        ],
-      ),
-    ).then((confirmed) {
-      if (confirmed == true && context.mounted) {
-        context.read<InventoryBloc>().add(ItemDeleted(item.id));
-        context.read<NavigationCubit>().goBack();
-      }
-    });
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete item?',
+      message:
+          '"${item.name}" will be removed from your price book. This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (confirmed && context.mounted) {
+      context.read<InventoryBloc>().add(ItemDeleted(item.id));
+      AppSnackbar.success(context, '"${item.name}" deleted');
+      context.read<NavigationCubit>().goBack();
+    }
   }
 }
 
@@ -121,30 +116,33 @@ class _TypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUnit = item is UnitItem;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isUnit ? Icons.shopping_bag_outlined : Icons.scale_outlined,
-            size: 16,
-            color: AppColors.primary,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            isUnit ? 'Unit / Packaged' : 'Loose / By weight',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primarySurface,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isUnit ? Icons.shopping_bag_outlined : Icons.scale_outlined,
+              size: 16,
               color: AppColors.primary,
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Text(
+              isUnit ? 'Unit / Packaged' : 'Loose / By weight',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -170,13 +168,13 @@ class _VariantSection extends StatelessWidget {
                 const Text('Variants',
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textSecondary,
                     )),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => _showAddDialog(context),
-                  icon: const Icon(Icons.add, size: 16),
+                  icon: const Icon(Icons.add_rounded, size: 17),
                   label: const Text('Add'),
                   style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 8)),
@@ -238,8 +236,16 @@ class _VariantSection extends StatelessWidget {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dlg),
+              style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary),
               child: const Text('Cancel')),
-          ElevatedButton(
+          FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(96, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              textStyle:
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
             onPressed: () {
               if (formKey.currentState!.validate()) {
                 Navigator.pop(dlg);
@@ -269,7 +275,7 @@ class _VariantTile extends StatelessWidget {
     return ListTile(
       leading: Icon(
         variant.isDefault ? Icons.star_rounded : Icons.star_outline_rounded,
-        size: 18,
+        size: 19,
         color: variant.isDefault ? AppColors.accent : AppColors.textHint,
       ),
       title: Text(variant.label,
@@ -283,7 +289,7 @@ class _VariantTile extends StatelessWidget {
           Text('₹${_fmt(variant.price)}',
               style: const TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary)),
           const SizedBox(width: 4),
           IconButton(
@@ -293,7 +299,7 @@ class _VariantTile extends StatelessWidget {
             tooltip: 'Edit',
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline,
+            icon: const Icon(Icons.delete_outline_rounded,
                 size: 18, color: AppColors.error),
             onPressed: () => context.read<InventoryBloc>().add(
                 VariantDeleted(itemId: itemId, variantId: variant.id)),
@@ -354,8 +360,16 @@ class _VariantTile extends StatelessWidget {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(dlg),
+                style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary),
                 child: const Text('Cancel')),
-            ElevatedButton(
+            FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(96, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                textStyle:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+              ),
               onPressed: () {
                 if (formKey.currentState!.validate()) {
                   Navigator.pop(dlg);
@@ -405,7 +419,7 @@ class _LooseSection extends StatelessWidget {
                   Text('₹${_fmt(rate)}',
                       style: const TextStyle(
                         fontSize: 24,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,
                       )),
                 ],
@@ -414,13 +428,13 @@ class _LooseSection extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.10),
+                color: AppColors.primarySurface,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(unit,
                   style: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.primary,
                   )),
             ),

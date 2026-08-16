@@ -9,6 +9,7 @@ import 'package:khata_dost/features/inventory/presentation/pages/inventory_page.
 
 import '../../features/inventory/presentation/bloc/inventory_bloc.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/settings/change_password/presentation/pages/change_password_page.dart';
 import '../navigation/app_routes.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
 import '../../features/auth/bloc/auth_state.dart';
@@ -29,6 +30,14 @@ import '../../features/customers/presentation/pages/customer_form_page.dart';
 
 import '../../features/inventory/presentation/pages/item_detail_page.dart';
 import '../../features/inventory/presentation/pages/item_form_page.dart';
+
+import '../../features/bills/presentation/bloc/bill_builder_bloc.dart';
+import '../../features/bills/presentation/bloc/bills_bloc.dart';
+import '../../features/bills/presentation/pages/bill_builder_page.dart';
+import '../../features/bills/presentation/pages/settle_page.dart';
+
+import '../../features/khata/presentation/bloc/khata_bloc.dart';
+import '../../features/khata/presentation/pages/customer_khata_page.dart';
 
 
 class AppRouter {
@@ -74,11 +83,51 @@ class AppRouter {
           ),
 
           // Branch 1 — Bills
+          // Sub-routes (new / new/settle) push WITHIN this branch.
+          // Every billing route pulls the SAME GetIt singletons, so the
+          // FAB's scan path and the manual "+" path share ONE draft bill.
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: AppRoutes.bills,
-                builder: (_, __) => const BillsPage(),
+                builder: (_, __) => BlocProvider.value(
+                  value: GetIt.I<BillsBloc>(),
+                  child: const BillsPage(),
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'new', // relative → /home/bills/new
+                    builder: (_, state) => MultiBlocProvider(
+                      providers: [
+                        BlocProvider.value(value: GetIt.I<BillBuilderBloc>()),
+                        // Manual on-ramp searches inventory (read-only).
+                        BlocProvider.value(value: GetIt.I<InventoryBloc>()),
+                      ],
+                      child: BillBuilderPage(
+                        // FAB path arrives as ?scan=1 → auto-open capture.
+                        scanOnOpen:
+                            state.uri.queryParameters['scan'] == '1',
+                      ),
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'settle', // → /home/bills/new/settle
+                        builder: (_, __) => MultiBlocProvider(
+                          providers: [
+                            BlocProvider.value(
+                                value: GetIt.I<BillBuilderBloc>()),
+                            // Customer picker (read-only reuse).
+                            BlocProvider.value(
+                                value: GetIt.I<CustomersBloc>()),
+                            // Refreshed after a successful settle.
+                            BlocProvider.value(value: GetIt.I<BillsBloc>()),
+                          ],
+                          child: const SettlePage(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
@@ -155,6 +204,23 @@ class AppRouter {
                       ),
                     ),
                   ),
+                  // Phase 5: the detail page's grown stub — the khata page
+                  // pushes WITHIN branch 3 (back lands on the detail page).
+                  // Listed before ':id' alongside ':id/edit' (two-segment
+                  // patterns match before the one-segment detail route).
+                  GoRoute(
+                    path: ':id/khata', // relative → /home/customers/:id/khata
+                    builder: (_, state) => MultiBlocProvider(
+                      providers: [
+                        BlocProvider.value(value: GetIt.I<KhataBloc>()),
+                        // Customer name + has_dues refresh (read-only reuse).
+                        BlocProvider.value(value: GetIt.I<CustomersBloc>()),
+                      ],
+                      child: CustomerKhataPage(
+                        customerId: state.pathParameters['id']!,
+                      ),
+                    ),
+                  ),
                   GoRoute(
                     path: ':id', // relative → /home/customers/:id
                     builder: (_, state) => BlocProvider.value(
@@ -174,6 +240,14 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.settings,
         builder: (_, __) => const SettingsPage(),
+        routes: [
+          // Placeholder change-password flow — its own bloc, provided locally
+          // inside the page (not GetIt). → /settings/change-password
+          GoRoute(
+            path: 'change-password',
+            builder: (_, __) => const ChangePasswordPage(),
+          ),
+        ],
       ),
     ],
   );

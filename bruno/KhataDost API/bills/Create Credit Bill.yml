@@ -1,0 +1,41 @@
+info:
+  name: Create Credit Bill
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/bills"
+  body:
+    type: json
+    data: |-
+      {
+        "customer_id": "{{customerId}}",
+        "amount_paid": 0,
+        "items": [
+          { "name": "Lays Medium", "quantity": 1, "unit_price": 20 },
+          { "name": "Sugar", "quantity": 0.75, "unit_price": 40 }
+        ]
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // Full credit sale: set {{customerId}} env var first (copy an id from
+        // GET /v1/customers). Expect 201, amount 50, amount_paid 0, server-side
+        // customer_name snapshot. Phase 2 will also write a khata credit entry.
+        const json = res.getBody();
+        if (res.getStatus() === 201 && json.id) {
+          bru.setEnvVar("billId", json.id);
+          console.log("Bill saved:", json.id);
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

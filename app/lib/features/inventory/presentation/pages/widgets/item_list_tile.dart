@@ -13,6 +13,10 @@ class ItemListTile extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias, // so the InkWell ripple respects the radius
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.divider),
+      ),
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -26,8 +30,10 @@ class ItemListTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(item.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 15.5,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
                         )),
@@ -38,7 +44,8 @@ class ItemListTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.textHint),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textHint),
             ],
           ),
         ),
@@ -52,14 +59,9 @@ class ItemListTile extends StatelessWidget {
     LooseItem(:final rate, :final unit) => '₹${_money(rate)}/$unit',
   };
 
-  // String _unitHint(List<ItemVariant> variants) {
-  //   if (variants.isEmpty) return '—';
-  //   final base =
-  //   variants.firstWhere((v) => v.isDefault, orElse: () => variants.first);
-  //   final count = variants.length > 1 ? ' · ${variants.length} sizes' : '';
-  //   return 'from ₹${_money(base.price)}$count';
-  // }
-
+  // NOTE: deliberately NOT firstWhere+orElse — frozen-model lists are runtime
+  // List<ItemVariantModel>, and a () => ItemVariant orElse closure throws a
+  // covariance TypeError. where()+isEmpty is the safe pattern.
   String _unitHint(List<ItemVariant> variants) {
     if (variants.isEmpty) return '—';
     final defaults = variants.where((v) => v.isDefault);
@@ -86,8 +88,8 @@ class _IconChip extends StatelessWidget {
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.10), // soft green tint
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.primarySurface,
+        borderRadius: BorderRadius.circular(13),
       ),
       child: Icon(icon, size: 22, color: AppColors.primary),
     );

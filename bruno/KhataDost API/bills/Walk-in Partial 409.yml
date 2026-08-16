@@ -1,0 +1,34 @@
+info:
+  name: Walk-in Partial 409
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/bills"
+  body:
+    type: json
+    data: |-
+      {
+        "amount_paid": 5,
+        "items": [
+          { "name": "Chai", "quantity": 1, "unit_price": 10 }
+        ]
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // Walk-in with amount_paid != total: no khata to owe against.
+        // Expect 409 {"error":"a walk-in bill must be paid in full"}.
+        console.log(res.getStatus(), JSON.stringify(res.getBody()));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

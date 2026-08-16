@@ -24,7 +24,7 @@ var (
 	ErrCustomerNotFound = errors.New("customer not found")
 )
 
-// ── Domain struct (separate from sqlcgen.Customer) ──────────────────────────
+// ── Domain struct (separate from sqlcgen types) ──────────────────────────────
 // email/notes are *string (nullable), not sql.NullString — the service and
 // handler never see database/sql types.
 type Customer struct {
@@ -75,7 +75,10 @@ func (r *customerRepository) Create(
 		}
 		return nil, fmt.Errorf("CreateCustomer: %w", err)
 	}
-	c := toDomain(row)
+	// Field-by-field extraction: works regardless of whether sqlc names the
+	// returned struct Customer, CreateCustomerRow, or something else after
+	// migration 006 made has_dues a computed column (false literal for CREATE).
+	c := toCustomer(row.ID, row.Name, row.Phone, row.Email, row.Notes, row.HasDues, row.CreatedAt, row.UpdatedAt)
 	return &c, nil
 }
 
@@ -87,7 +90,7 @@ func (r *customerRepository) List(ctx context.Context, userID uuid.UUID) ([]Cust
 	}
 	customers := make([]Customer, 0, len(rows))
 	for _, row := range rows {
-		customers = append(customers, toDomain(row))
+		customers = append(customers, toCustomer(row.ID, row.Name, row.Phone, row.Email, row.Notes, row.HasDues, row.CreatedAt, row.UpdatedAt))
 	}
 	return customers, nil
 }
@@ -104,7 +107,7 @@ func (r *customerRepository) GetByID(ctx context.Context, id, userID uuid.UUID) 
 		}
 		return nil, fmt.Errorf("GetCustomerByID: %w", err)
 	}
-	c := toDomain(row)
+	c := toCustomer(row.ID, row.Name, row.Phone, row.Email, row.Notes, row.HasDues, row.CreatedAt, row.UpdatedAt)
 	return &c, nil
 }
 
@@ -132,7 +135,7 @@ func (r *customerRepository) Update(
 		}
 		return nil, fmt.Errorf("UpdateCustomer: %w", err)
 	}
-	c := toDomain(row)
+	c := toCustomer(row.ID, row.Name, row.Phone, row.Email, row.Notes, row.HasDues, row.CreatedAt, row.UpdatedAt)
 	return &c, nil
 }
 
@@ -150,17 +153,30 @@ func (r *customerRepository) Delete(ctx context.Context, id, userID uuid.UUID) e
 
 // ── Mapping helpers ─────────────────────────────────────────────────────────
 
-// toDomain maps a sqlc row → the repository's domain Customer.
-func toDomain(row sqlcgen.Customer) Customer {
+// toCustomer builds a domain Customer from explicit column values.
+//
+// After migration 006 dropped the has_dues column, sqlc regenerate may produce
+// per-query Row structs (CreateCustomerRow, ListCustomersRow, etc.) instead of
+// reusing the table's Customer model. By extracting fields by name at the call
+// site (row.ID, row.HasDues, …) and passing them here as plain Go values, this
+// function remains type-agnostic — it compiles regardless of what sqlc names the
+// returned struct, as long as the struct has the expected field names.
+func toCustomer(
+	id uuid.UUID,
+	name, phone string,
+	email, notes sql.NullString,
+	hasDues bool,
+	createdAt, updatedAt time.Time,
+) Customer {
 	return Customer{
-		ID:        row.ID.String(),
-		Name:      row.Name,
-		Phone:     row.Phone,
-		Email:     fromNullString(row.Email),
-		Notes:     fromNullString(row.Notes),
-		HasDues:   row.HasDues,
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
+		ID:        id.String(),
+		Name:      name,
+		Phone:     phone,
+		Email:     fromNullString(email),
+		Notes:     fromNullString(notes),
+		HasDues:   hasDues,
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 	}
 }
 

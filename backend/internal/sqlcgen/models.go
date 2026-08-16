@@ -17,6 +17,20 @@ type Bill struct {
 	CustomerName string
 	Amount       string
 	CreatedAt    time.Time
+	CustomerID   uuid.NullUUID
+	AmountPaid   string
+}
+
+type BillItem struct {
+	ID        uuid.UUID
+	BillID    uuid.UUID
+	ItemID    uuid.NullUUID
+	VariantID uuid.NullUUID
+	Name      string
+	Quantity  string
+	UnitPrice string
+	LineTotal string
+	CreatedAt time.Time
 }
 
 type Customer struct {
@@ -26,7 +40,6 @@ type Customer struct {
 	Phone     string
 	Email     sql.NullString
 	Notes     sql.NullString
-	HasDues   bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -51,6 +64,17 @@ type ItemVariant struct {
 	Description sql.NullString
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type KhataEntry struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	CustomerID uuid.UUID
+	Type       string
+	Amount     string
+	BillID     uuid.NullUUID
+	Note       sql.NullString
+	CreatedAt  time.Time
 }
 
 type User struct {

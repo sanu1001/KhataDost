@@ -1,0 +1,50 @@
+info:
+  name: Scan Photo
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/scan"
+  body:
+    type: json
+    data: |-
+      {
+        "image_base64": "{{scanImageB64}}",
+        "mime_type": "image/jpeg"
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: pre-request
+      code: |-
+        // Loads the photo at scanImagePath (set it in the local env to a real
+        // product photo, e.g. C:\\Users\\sanum\\Pictures\\counter.jpg) and
+        // injects it as base64. Needs Bruno's developer mode (fs access):
+        // if the sandbox blocks require('fs'), either disable safe mode or
+        // paste base64 into a scanImageB64 env var yourself
+        // (PowerShell: [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\photo.jpg")) | Set-Clipboard).
+        const path = bru.getEnvVar('scanImagePath');
+        if (path) {
+          const fs = require('fs');
+          bru.setVar('scanImageB64', fs.readFileSync(path, 'base64'));
+        }
+    - type: after-response
+      code: |-
+        // Real-photo test (needs GEMINI_API_KEY in backend/.env + server restart).
+        // Expect 200 with matches[] (cards from YOUR inventory at their default
+        // variant) + unmatched[] labels. Empty photo → 200 with two empty arrays.
+        // 429 = free-tier quota (10 RPM) — wait a minute. 502 = key missing/invalid.
+        const json = res.getBody();
+        console.log("Status:", res.getStatus());
+        console.log("Matches:", (json.matches || []).map(m => `${m.detected_label} -> ${m.item.name} @ ${m.default_variant_id} x${m.detected_quantity}`));
+        console.log("Unmatched:", (json.unmatched || []).map(u => `${u.label} x${u.quantity}`));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

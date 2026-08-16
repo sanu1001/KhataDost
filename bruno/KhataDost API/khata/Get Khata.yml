@@ -1,0 +1,29 @@
+info:
+  name: Get Khata
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/khata/{{customerId}}"
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // Verify: 200, balance is a number, entries is an array.
+        // Run AFTER creating a credit bill (Phase 1 Create Credit Bill sets billId
+        // and the customerId env var). Expect at least one 'credit' entry whose
+        // amount equals the bill total, and balance > 0.
+        const json = res.getBody();
+        console.log("Status:", res.getStatus());
+        console.log("Balance:", json.balance, "Entries:", json.entries.length);
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 	"github.com/sanu1001/KhataDost/backend/internal/db"
+	"github.com/sanu1001/KhataDost/backend/internal/gemini"
 	"github.com/sanu1001/KhataDost/backend/internal/handler"
 	"github.com/sanu1001/KhataDost/backend/internal/middleware"
 	"github.com/sanu1001/KhataDost/backend/internal/repository"
@@ -34,6 +35,11 @@ func main() {
 	dashboardService := service.NewDashboardService(dashboardRepo)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 
+	// me chain (read-only profile for Settings; reads the frozen users table)
+	meRepo := repository.NewMeRepository(database)
+	meService := service.NewMeService(meRepo)
+	meHandler := handler.NewMeHandler(meService)
+
 	// customer chain
 	customerRepo := repository.NewCustomerRepository(database)
 	customerService := service.NewCustomerService(customerRepo)
@@ -43,6 +49,27 @@ func main() {
 	inventoryRepo := repository.NewInventoryRepository(database)
 	inventoryService := service.NewInventoryService(inventoryRepo)
 	inventoryHandler := handler.NewInventoryHandler(inventoryService)
+
+	// billing chain (reuses the frozen customer repo read-only: ownership
+	// guard + customer_name snapshot at settle time)
+	billingRepo := repository.NewBillingRepository(database)
+	billingService := service.NewBillingService(billingRepo, customerRepo)
+	billingHandler := handler.NewBillingHandler(billingService)
+
+	// khata chain (reuses the frozen customer repo read-only: ownership guard)
+	khataRepo := repository.NewKhataRepository(database)
+	khataService := service.NewKhataService(khataRepo, customerRepo)
+	khataHandler := handler.NewKhataHandler(khataService)
+
+	// scan chain (reuses the frozen inventory repo read-only: the match pool).
+	// The Gemini key lives in .env ONLY — it never ships in the Flutter app.
+	geminiKey := os.Getenv("GEMINI_API_KEY")
+	if geminiKey == "" {
+		log.Println("WARNING: GEMINI_API_KEY not set — /v1/scan will return 502 until it is added to .env")
+	}
+	geminiClient := gemini.NewClient(geminiKey)
+	scanService := service.NewScanService(geminiClient, inventoryRepo)
+	scanHandler := handler.NewScanHandler(scanService)
 
 	r := chi.NewRouter()
 
@@ -60,6 +87,8 @@ func main() {
 		r.Use(middleware.RequireAuth)
 		r.Get("/v1/dashboard/summary", dashboardHandler.GetSummary)
 
+		r.Get("/v1/me", meHandler.Get)
+
 		r.Post("/v1/customers", customerHandler.Create)
 		r.Get("/v1/customers", customerHandler.List)
 		r.Put("/v1/customers/{id}", customerHandler.Update)
@@ -72,6 +101,15 @@ func main() {
 		r.Post("/v1/inventory/{id}/variants", inventoryHandler.AddVariant)
 		r.Put("/v1/inventory/{id}/variants/{vid}", inventoryHandler.UpdateVariant)
 		r.Delete("/v1/inventory/{id}/variants/{vid}", inventoryHandler.DeleteVariant)
+
+		r.Post("/v1/bills", billingHandler.Create)
+		r.Get("/v1/bills", billingHandler.List)
+		r.Get("/v1/bills/{id}", billingHandler.GetByID)
+
+		r.Get("/v1/khata/{customerId}", khataHandler.GetKhata)
+		r.Post("/v1/khata/{customerId}/payment", khataHandler.RecordPayment)
+
+		r.Post("/v1/scan", scanHandler.Scan)
 	})
 
 	port := os.Getenv("PORT")

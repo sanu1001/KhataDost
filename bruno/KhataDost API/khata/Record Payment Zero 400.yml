@@ -1,0 +1,30 @@
+info:
+  name: Record Payment Zero 400
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/khata/{{customerId}}/payment"
+  body:
+    type: json
+    data: |-
+      {
+        "amount": 0
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // Negative test: amount = 0 must be rejected. Expect 400.
+        console.log(res.getStatus(), JSON.stringify(res.getBody()));
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
