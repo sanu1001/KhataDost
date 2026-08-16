@@ -5,6 +5,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 import '../../../../core/navigation/navigation_cubit.dart';
 import '../../../../core/shell/shell_actions.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/empty_state.dart';
 
 import '../bloc/inventory_bloc.dart';
 import 'widgets/inventory_skeletons.dart';
@@ -34,9 +35,23 @@ class _InventoryPageState extends State<InventoryPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inventory'),
+        centerTitle: false,
+        titleSpacing: 20,
         actions: [
           IconButton(
-            icon: const Icon(Icons.add, color: AppColors.primary),
+            icon: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppColors.primarySurface,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: const Icon(
+                Icons.add_rounded,
+                color: AppColors.primary,
+                size: 21,
+              ),
+            ),
             tooltip: 'Add item',
             onPressed: () => context.read<NavigationCubit>().pushAddItem(),
           ),
@@ -46,7 +61,7 @@ class _InventoryPageState extends State<InventoryPage> {
       body: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: ItemSearchBar(),
           ),
           Expanded(
@@ -67,8 +82,8 @@ class _InventoryBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.status == InventoryStatus.error && state.items.isEmpty) {
-      return _ErrorState(
-        message: state.errorMessage ?? 'Something went wrong',
+      return EmptyState.error(
+        message: state.errorMessage,
         onRetry: () =>
             context.read<InventoryBloc>().add(const InventoryLoadRequested()),
       );
@@ -77,16 +92,18 @@ class _InventoryBody extends StatelessWidget {
     final isLoading = state.status == InventoryStatus.loading;
 
     if (!isLoading && state.items.isEmpty) {
-      return const _EmptyState(
+      return EmptyState(
         icon: Icons.inventory_2_outlined,
         title: 'No items yet',
         subtitle: 'Add your first item to start building your price book.',
+        actionLabel: 'Add item',
+        onAction: () => context.read<NavigationCubit>().pushAddItem(),
       );
     }
 
     if (!isLoading && state.visibleItems.isEmpty) {
-      return const _EmptyState(
-        icon: Icons.search_off,
+      return const EmptyState(
+        icon: Icons.search_off_rounded,
         title: 'No matches',
         subtitle: 'Try a different name.',
       );
@@ -96,8 +113,16 @@ class _InventoryBody extends StatelessWidget {
 
     return Skeletonizer(
       enabled: isLoading,
+      effect: const ShimmerEffect(
+        baseColor: AppColors.surfaceVariant,
+        highlightColor: AppColors.cardBg,
+      ),
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        // Bottom inset = floating glass bar height (injected by the shell's
+        // extendBody) + breathing room, so the last item scrolls clear of
+        // the bar while the list stays visible beneath the glass.
+        padding: EdgeInsets.fromLTRB(
+            16, 8, 16, MediaQuery.paddingOf(context).bottom + 12),
         itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, i) {
@@ -109,83 +134,6 @@ class _InventoryBody extends StatelessWidget {
                 : () => context.read<NavigationCubit>().pushItemDetail(item.id),
           );
         },
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  const _EmptyState(
-      {required this.icon, required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.10),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 30, color: AppColors.primary), // was hardcoded
-            ),
-            const SizedBox(height: 16),
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary)),
-            const SizedBox(height: 6),
-            Text(subtitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 13.5, color: AppColors.textSecondary)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, size: 40, color: AppColors.textSecondary),
-            const SizedBox(height: 14),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 14.5, color: AppColors.textPrimary)),
-            const SizedBox(height: 16),
-            // Inherits green bg + radius 12 from elevatedButtonTheme;
-            // we only shrink it from full-width to a compact size.
-            ElevatedButton(
-              onPressed: onRetry,
-              style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(140, 48)),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
       ),
     );
   }

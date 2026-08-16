@@ -15,38 +15,49 @@ class AboutSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(20, 24, 20, 32),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
       child: Column(
         children: [
-          Text(
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.gradientStart, AppColors.gradientEnd],
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.receipt_long_rounded,
+                color: Colors.white, size: 24),
+          ),
+          const SizedBox(height: 10),
+          const Text(
             _appName,
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
               color: AppColors.textPrimary,
             ),
           ),
-          SizedBox(height: 4),
-          Text(
+          const SizedBox(height: 4),
+          const Text(
             _tagline,
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
-          SizedBox(height: 8),
-          Text(
-            _version,
-            style: TextStyle(fontSize: 13, color: AppColors.textHint),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Built with Flutter & Go',
+          const SizedBox(height: 8),
+          const Text(
+            '$_version  ·  Built with Flutter & Go',
             style: TextStyle(fontSize: 12, color: AppColors.textHint),
           ),
-          SizedBox(height: 10),
-          SelectableText(
+          const SizedBox(height: 8),
+          const SelectableText(
             _repoUrl,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: AppColors.primaryLight),
+            style: TextStyle(fontSize: 12, color: AppColors.primary),
           ),
         ],
       ),

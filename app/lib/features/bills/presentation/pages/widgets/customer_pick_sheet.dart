@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/widgets/app_skeletons.dart';
 import '../../../../customers/domain/entities/customer.dart';
 import '../../../../customers/domain/entities/customer_search_index.dart';
 import '../../../../customers/presentation/bloc/customers_bloc.dart';
@@ -75,33 +77,77 @@ class _CustomerPickSheetState extends State<CustomerPickSheet> {
         height: MediaQuery.of(context).size.height * 0.65,
         child: Column(
           children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+            const Padding(
+              padding: EdgeInsets.only(top: 2, bottom: 4),
+              child: Text(
+                'Select Customer',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: TextField(
                 autofocus: true,
                 decoration: const InputDecoration(
-                  hintText: 'Search customers…',
-                  prefixIcon: Icon(Icons.search),
+                  hintText: 'Search by name or phone number…',
+                  prefixIcon: Icon(Icons.search_rounded,
+                      size: 21, color: AppColors.textHint),
                   isDense: true,
-                  border: OutlineInputBorder(),
                 ),
                 onChanged: (q) => setState(() => _query = q),
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.person_off_outlined),
-              title: const Text('Walk-in'),
-              subtitle: const Text('No ledger — pays in full'),
-              onTap: () => _select(context),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Material(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => _select(context),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceVariant,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.person_off_outlined,
+                              size: 20, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Walk-in Customer',
+                                  style: TextStyle(
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary)),
+                              SizedBox(height: 1),
+                              Text('No ledger — pays in full',
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded,
+                            color: AppColors.textHint),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
             const Divider(height: 1),
             Expanded(
@@ -109,29 +155,103 @@ class _CustomerPickSheetState extends State<CustomerPickSheet> {
                 builder: (context, state) {
                   if (state.status == CustomersStatus.loading &&
                       state.customers.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const SkeletonTileList(count: 5);
                   }
                   if (state.status == CustomersStatus.error &&
                       state.customers.isEmpty) {
                     return const Center(
-                        child: Text('Could not load customers'));
+                      child: Text(
+                        'Could not load customers',
+                        style: TextStyle(
+                            fontSize: 13.5, color: AppColors.textSecondary),
+                      ),
+                    );
                   }
                   final visible = _visible(state.customers);
                   if (visible.isEmpty) {
-                    return const Center(child: Text('No customers found'));
+                    return const Center(
+                      child: Text(
+                        'No customers found',
+                        style: TextStyle(
+                            fontSize: 13.5, color: AppColors.textSecondary),
+                      ),
+                    );
                   }
                   return ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                     itemCount: visible.length,
                     itemBuilder: (context, i) {
                       final c = visible[i];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          child: Text(
-                              c.name.isEmpty ? '?' : c.name[0].toUpperCase()),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: AppColors.cardBg,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: const BorderSide(color: AppColors.divider),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () =>
+                                _select(context, id: c.id, name: c.name),
+                            child: Padding(
+                              padding: const EdgeInsets.all(11),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.primarySurface,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        c.name.isEmpty
+                                            ? '?'
+                                            : c.name[0].toUpperCase(),
+                                        style: const TextStyle(
+                                          color: AppColors.primary,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          c.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          '+91 ${c.phone}',
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.chevron_right_rounded,
+                                      color: AppColors.textHint),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        title: Text(c.name),
-                        subtitle: Text(c.phone),
-                        onTap: () => _select(context, id: c.id, name: c.name),
                       );
                     },
                   );

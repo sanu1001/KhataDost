@@ -21,9 +21,14 @@ abstract class AuthRepository {
     required String accessCode,
   });
 
-  /// Clears the stored JWT.
+  /// Clears the stored JWT (and the persisted user snapshot).
   Future<void> logout();
 
   /// Returns the stored JWT string, or null if none exists.
   Future<String?> getSavedToken();
+
+  /// Returns the user snapshot persisted at the last login/register,
+  /// or null if none exists (or it can't be parsed). Never throws —
+  /// a corrupt snapshot must not break cold start.
+  Future<User?> getSavedUser();
 }

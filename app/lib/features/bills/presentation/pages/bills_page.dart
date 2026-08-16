@@ -4,6 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/navigation/navigation_cubit.dart';
 import '../../../../core/navigation/navigation_state.dart';
 import '../../../../core/shell/shell_actions.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_skeletons.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../../domain/entities/bill.dart';
 import '../bloc/bills_bloc.dart';
 import 'widgets/formats.dart';
@@ -39,20 +42,37 @@ class _BillsPageState extends State<BillsPage> {
         appBar: AppBar(
           title: const Text('Bills'),
           centerTitle: false,
+          titleSpacing: 20,
           actions: [
             IconButton(
               tooltip: 'New bill',
-              icon: const Icon(Icons.add),
+              icon: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: const Icon(
+                  Icons.add_rounded,
+                  color: AppColors.primary,
+                  size: 21,
+                ),
+              ),
               onPressed: () =>
                   context.read<NavigationCubit>().pushNewBill(),
             ),
             const ShellActions(),
           ],
         ),
+        // bottom: false — the shell's floating glass bar overlays the list;
+        // the list pads itself past it so content scrolls visibly beneath.
         body: SafeArea(
+          bottom: false,
           child: BlocBuilder<BillsBloc, BillsState>(
             builder: (context, state) {
               return RefreshIndicator(
+                color: AppColors.primary,
                 onRefresh: () async {
                   _requestLoad();
                   await context
@@ -78,22 +98,19 @@ class _BillsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.isLoading && state.bills.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const SkeletonTileList();
     }
 
     if (state.status == BillsStatus.error && state.bills.isEmpty) {
+      // ListView so pull-to-refresh keeps working on the error body.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          const SizedBox(height: 120),
-          Center(child: Text(state.errorMessage ?? 'Could not load bills')),
-          const SizedBox(height: 12),
-          Center(
-            child: OutlinedButton(
-              onPressed: () =>
-                  context.read<BillsBloc>().add(const BillsLoadRequested()),
-              child: const Text('Retry'),
-            ),
+          const SizedBox(height: 60),
+          EmptyState.error(
+            message: state.errorMessage,
+            onRetry: () =>
+                context.read<BillsBloc>().add(const BillsLoadRequested()),
           ),
         ],
       );
@@ -103,32 +120,13 @@ class _BillsBody extends StatelessWidget {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          const SizedBox(height: 100),
-          Icon(Icons.receipt_long_outlined,
-              size: 56,
-              color: Theme.of(context).colorScheme.outlineVariant),
-          const SizedBox(height: 12),
-          const Center(
-            child: Text('No bills yet',
-                style:
-                    TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          ),
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              'Scan the counter or tap + to write the first one.',
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: FilledButton.icon(
-              onPressed: () =>
-                  context.read<NavigationCubit>().pushNewBill(),
-              icon: const Icon(Icons.add),
-              label: const Text('New bill'),
-            ),
+          const SizedBox(height: 40),
+          EmptyState(
+            icon: Icons.receipt_long_outlined,
+            title: 'No bills yet',
+            subtitle: 'Scan the counter or tap + to write the first one.',
+            actionLabel: 'New bill',
+            onAction: () => context.read<NavigationCubit>().pushNewBill(),
           ),
         ],
       );
@@ -136,9 +134,11 @@ class _BillsBody extends StatelessWidget {
 
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      // Clears the floating glass bar (height injected via extendBody).
+      padding: EdgeInsets.fromLTRB(
+          16, 8, 16, MediaQuery.paddingOf(context).bottom + 12),
       itemCount: state.bills.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, indent: 72),
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, i) => _BillTile(bill: state.bills[i]),
     );
   }
@@ -151,46 +151,108 @@ class _BillTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     // Settlement flavor for the badge.
     final String badge;
     final Color badgeColor;
+    final Color badgeBg;
     if (bill.isFullyPaid) {
       badge = 'Paid';
-      badgeColor = Colors.green.shade700;
+      badgeColor = AppColors.success;
+      badgeBg = AppColors.successSurface;
     } else if (bill.amountPaid == 0) {
       badge = 'Credit';
-      badgeColor = scheme.error;
+      badgeColor = AppColors.error;
+      badgeBg = AppColors.errorSurface;
     } else {
       badge = 'Partial';
-      badgeColor = Colors.orange.shade800;
+      badgeColor = AppColors.warning;
+      badgeBg = AppColors.warningSurface;
     }
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: scheme.secondaryContainer,
-        child: Icon(
-          bill.isWalkIn ? Icons.person_off_outlined : Icons.person_outline,
-          size: 20,
-          color: scheme.onSecondaryContainer,
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
       ),
-      title: Text(bill.customerName,
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(formatBillDate(bill.createdAt)),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Row(
         children: [
-          Text('₹${formatMoney(bill.amount)}',
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700, fontSize: 15)),
-          Text(badge,
-              style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: badgeColor)),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: bill.isWalkIn
+                  ? AppColors.surfaceVariant
+                  : AppColors.primarySurface,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              bill.isWalkIn
+                  ? Icons.person_off_outlined
+                  : Icons.person_outline_rounded,
+              size: 20,
+              color:
+                  bill.isWalkIn ? AppColors.textSecondary : AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  bill.customerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  formatBillDate(bill.createdAt),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '₹${formatMoney(bill.amount)}',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Text(
+                  badge,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: badgeColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

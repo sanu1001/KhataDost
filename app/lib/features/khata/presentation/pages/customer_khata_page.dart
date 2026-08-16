@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/navigation/navigation_cubit.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_skeletons.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../../../bills/presentation/pages/widgets/formats.dart';
 import '../../../customers/presentation/bloc/customers_bloc.dart';
 import '../../../customers/presentation/bloc/customers_state.dart';
@@ -62,34 +65,43 @@ class _CustomerKhataPageState extends State<CustomerKhataPage> {
             switch (state.status) {
               case KhataStatus.initial:
               case KhataStatus.loading:
-                return const Center(child: CircularProgressIndicator());
-
-              case KhataStatus.error:
-                return Center(
+                return const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(state.errorMessage ?? 'Could not load khata'),
-                      const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: () => context
-                            .read<KhataBloc>()
-                            .add(KhataLoadRequested(widget.customerId)),
-                        child: const Text('Retry'),
+                      SkeletonStatCard(height: 124),
+                      SizedBox(height: 12),
+                      Expanded(
+                        child: SkeletonTileList(
+                          count: 5,
+                          padding: EdgeInsets.symmetric(vertical: 4),
+                        ),
                       ),
                     ],
                   ),
+                );
+
+              case KhataStatus.error:
+                return EmptyState.error(
+                  message: state.errorMessage,
+                  onRetry: () => context
+                      .read<KhataBloc>()
+                      .add(KhataLoadRequested(widget.customerId)),
                 );
 
               case KhataStatus.loaded:
                 return Column(
                   children: [
                     _BalanceHeader(state: state),
-                    const Divider(height: 1),
                     Expanded(
                       child: state.hasEntries
                           ? _Timeline(state: state)
-                          : const _EmptyLedger(),
+                          : const EmptyState(
+                              icon: Icons.menu_book_outlined,
+                              title: 'No entries yet',
+                              subtitle:
+                                  'Credit bills and payments will appear here.',
+                            ),
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -97,13 +109,8 @@ class _CustomerKhataPageState extends State<CustomerKhataPage> {
                         width: double.infinity,
                         child: FilledButton.icon(
                           onPressed: () => RecordPaymentSheet.show(context),
-                          icon: const Icon(Icons.payments_outlined),
-                          style: FilledButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          label: const Text('Record Payment',
-                              style: TextStyle(fontSize: 16)),
+                          icon: const Icon(Icons.payments_outlined, size: 20),
+                          label: const Text('Receive Payment'),
                         ),
                       ),
                     ),
@@ -125,40 +132,69 @@ class _BalanceHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final balance = state.balance;
 
     final String label;
     final Color amountColor;
+    final Color chipBg;
+    final IconData chipIcon;
     if (balance > 0) {
       label = 'Owes you';
-      amountColor = scheme.error;
+      amountColor = AppColors.error;
+      chipBg = AppColors.errorSurface;
+      chipIcon = Icons.trending_up_rounded;
     } else if (balance < 0) {
       label = 'Advance — you owe';
-      amountColor = scheme.primary;
+      amountColor = AppColors.primary;
+      chipBg = AppColors.primarySurface;
+      chipIcon = Icons.trending_down_rounded;
     } else {
       label = 'All settled';
-      amountColor = scheme.onSurfaceVariant;
+      amountColor = AppColors.success;
+      chipBg = AppColors.successSurface;
+      chipIcon = Icons.check_circle_outline_rounded;
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.divider),
+      ),
       child: Column(
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: scheme.onSurfaceVariant,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+            decoration: BoxDecoration(
+              color: chipBg,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(chipIcon, size: 14, color: amountColor),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: amountColor,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 10),
           Text(
             '₹${formatMoney(balance.abs())}',
             style: TextStyle(
               fontSize: 34,
               fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
               color: amountColor,
             ),
           ),
@@ -166,7 +202,10 @@ class _BalanceHeader extends StatelessWidget {
           Text(
             'Derived from ${state.entries.length} '
             'entr${state.entries.length == 1 ? 'y' : 'ies'} — Σcredit − Σpayments',
-            style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textHint,
+            ),
           ),
         ],
       ),
@@ -184,47 +223,39 @@ class _Timeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = state.entries.length;
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      itemCount: n,
-      separatorBuilder: (_, __) => const Divider(height: 1, indent: 72),
-      itemBuilder: (context, i) {
-        final entry = state.entries[n - 1 - i];
-        final runningBalance = state.runningBalances[n - 1 - i];
-        return KhataEntryTile(
-          entry: entry,
-          runningBalance: runningBalance,
-          onTap: entry.hasBill
-              ? () => BillItemsSheet.show(context, entry.billId!)
-              : null,
-        );
-      },
-    );
-  }
-}
-
-class _EmptyLedger extends StatelessWidget {
-  const _EmptyLedger();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.menu_book_outlined,
-              size: 48, color: scheme.outlineVariant),
-          const SizedBox(height: 12),
-          const Text('No entries yet',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(
-            'Credit bills and payments will appear here',
-            style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 2, 20, 8),
+          child: Text(
+            'Transaction History',
+            style: TextStyle(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
           ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            itemCount: n,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, i) {
+              final entry = state.entries[n - 1 - i];
+              final runningBalance = state.runningBalances[n - 1 - i];
+              return KhataEntryTile(
+                entry: entry,
+                runningBalance: runningBalance,
+                onTap: entry.hasBill
+                    ? () => BillItemsSheet.show(context, entry.billId!)
+                    : null,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

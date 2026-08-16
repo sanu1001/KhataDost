@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_theme.dart';
+
 /// An inline-editable notebook cell (§9: every cell editable, nothing
 /// locks).
 ///
@@ -80,19 +82,33 @@ class _CellFieldState extends State<CellField> {
       autofocus: widget.autofocus,
       keyboardType: widget.keyboardType,
       textAlign: widget.textAlign,
-      style: widget.style,
+      style: widget.style ??
+          const TextStyle(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
       decoration: InputDecoration(
         isDense: true,
         hintText: widget.hint,
         prefixText: widget.prefixText,
         suffixText: widget.suffixText,
+        filled: true,
+        fillColor: AppColors.surface,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.divider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.divider),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide:
+              const BorderSide(color: AppColors.primary, width: 1.8),
         ),
       ),
       onChanged: widget.onChanged,

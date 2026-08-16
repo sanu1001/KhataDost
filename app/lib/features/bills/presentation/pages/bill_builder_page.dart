@@ -3,6 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/navigation/navigation_cubit.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
+import '../../../../core/widgets/confirm_dialog.dart';
 import '../../domain/entities/draft_line.dart';
 import '../bloc/bill_builder_bloc.dart';
 import 'widgets/formats.dart';
@@ -44,27 +47,39 @@ class _BillBuilderPageState extends State<BillBuilderPage> {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text('Scan products',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              dense: true,
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Camera'),
-              onTap: () =>
-                  Navigator.of(sheetContext).pop(ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Gallery'),
-              onTap: () =>
-                  Navigator.of(sheetContext).pop(ImageSource.gallery),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'Scan products',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              _ScanSourceTile(
+                icon: Icons.photo_camera_outlined,
+                title: 'Camera',
+                subtitle: 'Point at the products on the counter',
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.camera),
+              ),
+              const SizedBox(height: 10),
+              _ScanSourceTile(
+                icon: Icons.photo_library_outlined,
+                title: 'Gallery',
+                subtitle: 'Pick an existing photo',
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.gallery),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -87,10 +102,7 @@ class _BillBuilderPageState extends State<BillBuilderPage> {
       bloc.add(ScanRequested(bytes));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Could not open the camera — try Gallery.')),
-      );
+      AppSnackbar.error(context, 'Could not open the camera — try Gallery.');
     }
   }
 
@@ -99,24 +111,14 @@ class _BillBuilderPageState extends State<BillBuilderPage> {
   Future<void> _confirmDiscard() async {
     final bloc = context.read<BillBuilderBloc>();
     final nav = context.read<NavigationCubit>();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Discard this bill?'),
-        content: const Text('All lines on the draft will be removed.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Keep'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Discard this bill?',
+      message: 'All lines on the draft will be removed.',
+      confirmLabel: 'Discard',
+      destructive: true,
     );
-    if (confirmed == true) {
+    if (confirmed) {
       bloc.add(const BillBuilderReset());
       nav.goBack();
     }
@@ -130,9 +132,7 @@ class _BillBuilderPageState extends State<BillBuilderPage> {
           prev.scanStatus != curr.scanStatus &&
           curr.scanStatus == ScanStatus.failure,
       listener: (context, state) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(state.scanMessage ?? 'Scan failed')),
-        );
+        AppSnackbar.error(context, state.scanMessage ?? 'Scan failed');
       },
       builder: (context, state) {
         return Scaffold(
@@ -146,7 +146,8 @@ class _BillBuilderPageState extends State<BillBuilderPage> {
               if (state.lines.isNotEmpty)
                 IconButton(
                   tooltip: 'Discard draft',
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      color: AppColors.error, size: 22),
                   onPressed: _confirmDiscard,
                 ),
             ],
@@ -155,15 +156,36 @@ class _BillBuilderPageState extends State<BillBuilderPage> {
             child: Column(
               children: [
                 if (state.isScanning) ...[
-                  const LinearProgressIndicator(),
-                  const ListTile(
-                    dense: true,
-                    leading: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 11),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(color: AppColors.primaryBorder),
                     ),
-                    title: Text('Scanning photo…'),
+                    child: const Row(
+                      children: [
+                        SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Scanning photo…',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
                 Expanded(
@@ -207,6 +229,68 @@ class _BillBuilderPageState extends State<BillBuilderPage> {
   }
 }
 
+class _ScanSourceTile extends StatelessWidget {
+  const _ScanSourceTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
+                    const SizedBox(height: 1),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textHint),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyDraft extends StatelessWidget {
   const _EmptyDraft({required this.onScan});
 
@@ -214,31 +298,42 @@ class _EmptyDraft extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.receipt_long_outlined,
-              size: 56, color: scheme.outlineVariant),
-          const SizedBox(height: 12),
-          Text(
+          Container(
+            width: 76,
+            height: 76,
+            decoration: const BoxDecoration(
+              color: AppColors.primarySurface,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.receipt_long_outlined,
+                size: 34, color: AppColors.primary),
+          ),
+          const SizedBox(height: 18),
+          const Text(
             'Empty bill',
             style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: scheme.onSurfaceVariant),
+                fontSize: 16.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary),
           ),
-          const SizedBox(height: 4),
-          Text(
+          const SizedBox(height: 6),
+          const Text(
             'Scan the counter, or add items below.',
-            style: TextStyle(color: scheme.onSurfaceVariant),
+            style: TextStyle(fontSize: 13.5, color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
+          const SizedBox(height: 20),
+          FilledButton.icon(
             onPressed: onScan,
-            icon: const Icon(Icons.photo_camera_outlined),
-            label: const Text('Scan'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 46),
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+            ),
+            icon: const Icon(Icons.qr_code_scanner_rounded, size: 19),
+            label: const Text('Scan products'),
           ),
         ],
       ),
@@ -264,29 +359,71 @@ class _AddRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onScan,
-              icon: const Icon(Icons.photo_camera_outlined, size: 18),
-              label: const Text('Scan'),
+            child: _AddChip(
+              icon: Icons.photo_camera_outlined,
+              label: 'Scan',
+              onTap: onScan,
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onAddItem,
-              icon: const Icon(Icons.search, size: 18),
-              label: const Text('Add item'),
+            child: _AddChip(
+              icon: Icons.search_rounded,
+              label: 'Add item',
+              onTap: onAddItem,
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onAddMisc,
-              icon: const Icon(Icons.edit_note, size: 18),
-              label: const Text('Misc'),
+            child: _AddChip(
+              icon: Icons.edit_note_rounded,
+              label: 'Misc',
+              onTap: onAddMisc,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AddChip extends StatelessWidget {
+  const _AddChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primarySurface,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 17, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -306,13 +443,17 @@ class _TotalBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          top: BorderSide(
-              color: Theme.of(context).colorScheme.outlineVariant),
-        ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      decoration: const BoxDecoration(
+        color: AppColors.cardBg,
+        border: Border(top: BorderSide(color: AppColors.divider)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x0D17131F),
+            blurRadius: 12,
+            offset: Offset(0, -4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -320,22 +461,28 @@ class _TotalBar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Total',
+                const Text('Total Amount',
                     style: TextStyle(
-                        fontSize: 12,
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant)),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary)),
                 Text(
-                  '₹${formatMoney(total)}',
+                  '₹ ${formatMoney(total)}',
                   style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w700),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary),
                 ),
               ],
             ),
           ),
           FilledButton.icon(
             onPressed: canSettle ? onSettle : null,
-            icon: const Icon(Icons.arrow_forward),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            icon: const Icon(Icons.arrow_forward_rounded, size: 19),
             label: const Text('Settle'),
           ),
         ],

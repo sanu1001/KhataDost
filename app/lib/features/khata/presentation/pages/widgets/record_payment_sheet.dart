@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/widgets/app_snackbar.dart';
 import '../../../../bills/presentation/pages/widgets/formats.dart';
 import '../../../../customers/presentation/bloc/customers_bloc.dart';
 import '../../../../customers/presentation/bloc/customers_event.dart';
@@ -11,7 +13,7 @@ import '../../bloc/khata_bloc.dart';
 /// Balance is never typed — only moved by entries.
 ///
 /// Server 400s (and the identical client preflight) surface INLINE here,
-/// settle-page style. On success: pop, snackbar, and a
+/// settle-page style. On success: snackbar, pop, and a
 /// [CustomersLoadRequested] dispatch to the frozen CustomersBloc
 /// (public-API reuse) so the Customers tab's has_dues flips immediately.
 class RecordPaymentSheet extends StatefulWidget {
@@ -61,51 +63,55 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
           curr.paymentStatus == KhataPaymentStatus.success,
       listener: (context, state) {
         // Grab refs BEFORE popping — this widget is about to dispose.
-        final messenger = ScaffoldMessenger.of(context);
         final customersBloc = context.read<CustomersBloc>();
 
+        // Snackbar attaches to the root messenger, so it survives the pop.
+        AppSnackbar.success(context, 'Payment recorded');
         Navigator.of(context).pop();
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Payment recorded')),
-        );
         // has_dues is computed from this ledger server-side — refresh the
         // frozen customers list so the tab flips without a re-tap.
         customersBloc.add(const CustomersLoadRequested());
       },
       builder: (context, state) {
-        final scheme = Theme.of(context).colorScheme;
-
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: scheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(2),
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: AppColors.successSurface,
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(Icons.payments_outlined,
+                          color: AppColors.success, size: 21),
                     ),
-                  ),
+                    const SizedBox(width: 13),
+                    const Expanded(
+                      child: Text(
+                        'Receive Payment',
+                        style: TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Record Payment',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
                   'Current balance: ₹${formatMoney(state.balance)} — a payment entry brings it down.',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12.5,
-                    color: scheme.onSurfaceVariant,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -115,12 +121,16 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w600),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary),
                   decoration: const InputDecoration(
                     prefixText: '₹ ',
+                    prefixStyle: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textSecondary),
                     hintText: '0.00',
-                    border: OutlineInputBorder(),
-                    isDense: true,
                   ),
                   onSubmitted: (_) {
                     if (!state.isSubmittingPayment) _submit(context);
@@ -132,20 +142,28 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                     state.paymentError != null) ...[
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 11),
                     decoration: BoxDecoration(
-                      color: scheme.errorContainer.withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.errorSurface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFECACA)),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.error_outline,
-                            size: 18, color: scheme.error),
+                        const Icon(Icons.error_rounded,
+                            size: 18, color: AppColors.error),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             state.paymentError!,
-                            style: TextStyle(color: scheme.error),
+                            style: const TextStyle(
+                              color: AppColors.error,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              height: 1.35,
+                            ),
                           ),
                         ),
                       ],
@@ -153,22 +171,21 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                   ),
                 ],
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 FilledButton(
                   onPressed: state.isSubmittingPayment
                       ? null
                       : () => _submit(context),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
                   child: state.isSubmittingPayment
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
                         )
-                      : const Text('Save payment',
-                          style: TextStyle(fontSize: 16)),
+                      : const Text('Save payment'),
                 ),
               ],
             ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/widgets/app_skeletons.dart';
 import '../../../../inventory/domain/entities/item.dart';
 import '../../../../inventory/domain/entities/item_search_index.dart';
 import '../../../../inventory/presentation/bloc/inventory_bloc.dart';
@@ -90,24 +92,26 @@ class _ItemPickSheetState extends State<ItemPickSheet> {
         height: MediaQuery.of(context).size.height * 0.65,
         child: Column(
           children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+            const Padding(
+              padding: EdgeInsets.only(top: 2, bottom: 4),
+              child: Text(
+                'Add from Inventory',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: TextField(
                 autofocus: true,
                 decoration: const InputDecoration(
                   hintText: 'Search inventory…',
-                  prefixIcon: Icon(Icons.search),
+                  prefixIcon: Icon(Icons.search_rounded,
+                      size: 21, color: AppColors.textHint),
                   isDense: true,
-                  border: OutlineInputBorder(),
                 ),
                 onChanged: (q) => setState(() => _query = q),
               ),
@@ -117,34 +121,111 @@ class _ItemPickSheetState extends State<ItemPickSheet> {
                 builder: (context, state) {
                   if (state.status == InventoryStatus.loading &&
                       state.items.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const SkeletonTileList(count: 5);
                   }
                   if (state.status == InventoryStatus.error &&
                       state.items.isEmpty) {
                     return const Center(
-                        child: Text('Could not load inventory'));
+                      child: Text(
+                        'Could not load inventory',
+                        style: TextStyle(
+                            fontSize: 13.5, color: AppColors.textSecondary),
+                      ),
+                    );
                   }
                   final visible = _visible(state.items);
                   if (visible.isEmpty) {
                     return const Center(
-                        child: Text('No items — add it as Misc instead'));
+                      child: Text(
+                        'No items — add it as Misc instead',
+                        style: TextStyle(
+                            fontSize: 13.5, color: AppColors.textSecondary),
+                      ),
+                    );
                   }
                   return ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     itemCount: visible.length,
                     itemBuilder: (context, i) {
                       final item = visible[i];
-                      return ListTile(
-                        leading: Icon(item is LooseItem
-                            ? Icons.scale_outlined
-                            : Icons.inventory_2_outlined),
-                        title: Text(item.name),
-                        subtitle: Text(_subtitle(item)),
-                        onTap: () {
-                          context
-                              .read<BillBuilderBloc>()
-                              .add(ItemPicked(item));
-                          Navigator.of(context).pop();
-                        },
+                      final isLoose = item is LooseItem;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: AppColors.cardBg,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: const BorderSide(color: AppColors.divider),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () {
+                              context
+                                  .read<BillBuilderBloc>()
+                                  .add(ItemPicked(item));
+                              Navigator.of(context).pop();
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(11),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primarySurface,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      isLoose
+                                          ? Icons.scale_outlined
+                                          : Icons.shopping_bag_outlined,
+                                      size: 20,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          _subtitle(item),
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 30,
+                                    height: 30,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primarySurface,
+                                      borderRadius: BorderRadius.circular(9),
+                                    ),
+                                    child: const Icon(Icons.add_rounded,
+                                        size: 18, color: AppColors.primary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       );
                     },
                   );

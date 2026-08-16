@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/theme/app_theme.dart';
 import '../../../domain/entities/draft_line.dart';
 import '../../bloc/bill_builder_bloc.dart';
 import 'cell_field.dart';
@@ -82,7 +83,6 @@ class _VariantSwiper extends StatelessWidget {
     final hasMany = variants.length > 1;
     final index =
         variants.indexWhere((v) => v.id == line.selectedVariantId);
-    final scheme = Theme.of(context).colorScheme;
 
     return GestureDetector(
       onHorizontalDragEnd: (details) {
@@ -92,14 +92,14 @@ class _VariantSwiper extends StatelessWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: scheme.secondaryContainer.withOpacity(0.45),
+          color: AppColors.primarySurface,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
             if (hasMany)
               _ChevronButton(
-                icon: Icons.chevron_left,
+                icon: Icons.chevron_left_rounded,
                 onTap: () => _step(context, -1),
               )
             else
@@ -115,15 +115,16 @@ class _VariantSwiper extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
+                          color: AppColors.primaryDark,
                         ),
                       ),
                       TextSpan(
                         text:
                             '  ₹${formatMoney(line.selectedVariant.price)}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: scheme.onSurfaceVariant,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -139,20 +140,20 @@ class _VariantSwiper extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
-                  color: scheme.surface.withOpacity(0.75),
+                  color: AppColors.cardBg,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   '${index + 1}/${variants.length}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),
               _ChevronButton(
-                icon: Icons.chevron_right,
+                icon: Icons.chevron_right_rounded,
                 onTap: () => _step(context, 1),
               ),
             ] else
@@ -178,8 +179,7 @@ class _ChevronButton extends StatelessWidget {
       child: SizedBox(
         width: 44,
         height: 48,
-        child: Icon(icon,
-            size: 22, color: Theme.of(context).colorScheme.primary),
+        child: Icon(icon, size: 23, color: AppColors.primary),
       ),
     );
   }
@@ -308,10 +308,13 @@ class _LineCardShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bloc = context.read<BillBuilderBloc>();
-    final scheme = Theme.of(context).colorScheme;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.divider),
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 16),
         child: Column(
@@ -327,7 +330,9 @@ class _LineCardShell extends StatelessWidget {
                     keyboardType: TextInputType.text,
                     textAlign: TextAlign.start,
                     style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary),
                     onChanged: (t) => bloc.add(LineNameChanged(lineId, t)),
                   ),
                 ),
@@ -337,15 +342,15 @@ class _LineCardShell extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHighest,
+                      color: AppColors.surfaceVariant,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
                       badge!,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: scheme.onSurfaceVariant),
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary),
                     ),
                   ),
                 ],
@@ -353,8 +358,8 @@ class _LineCardShell extends StatelessWidget {
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   tooltip: 'Remove line',
-                  icon: Icon(Icons.close,
-                      size: 19, color: scheme.onSurfaceVariant),
+                  icon: const Icon(Icons.close_rounded,
+                      size: 19, color: AppColors.textSecondary),
                   onPressed: () => bloc.add(LineRemoved(lineId)),
                 ),
               ],
@@ -408,7 +413,9 @@ class _MetricsRow extends StatelessWidget {
                   '₹${formatMoney(total)}',
                   maxLines: 1,
                   style: const TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.w700),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary),
                 ),
               ),
             ),
@@ -433,7 +440,6 @@ class _MetricGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment:
@@ -441,11 +447,11 @@ class _MetricGroup extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 10.5,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
-            color: scheme.onSurfaceVariant.withOpacity(0.85),
+            color: AppColors.textHint,
           ),
         ),
         const SizedBox(height: 6),
@@ -467,7 +473,7 @@ class _QtyStepper extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _StepButton(
-          icon: Icons.remove,
+          icon: Icons.remove_rounded,
           enabled: value > 1,
           onTap: () => onChanged(value - 1),
         ),
@@ -482,7 +488,7 @@ class _QtyStepper extends StatelessWidget {
           ),
         ),
         _StepButton(
-          icon: Icons.add,
+          icon: Icons.add_rounded,
           enabled: true,
           onTap: () => onChanged(value + 1),
         ),
@@ -504,7 +510,6 @@ class _StepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(10),
@@ -513,8 +518,8 @@ class _StepButton extends StatelessWidget {
         height: 44,
         child: Icon(
           icon,
-          size: 20,
-          color: enabled ? scheme.primary : Theme.of(context).disabledColor,
+          size: 21,
+          color: enabled ? AppColors.primary : AppColors.textHint,
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/theme/app_theme.dart';
 import '../../bloc/auth_bloc.dart';
 import '../../bloc/auth_event.dart';
 import '../../bloc/auth_state.dart';
@@ -14,10 +15,10 @@ class LoginForm extends StatefulWidget {
 }
 
 class _LoginFormState extends State<LoginForm> {
-  final _formKey     = GlobalKey<FormState>();
-  final _emailCtrl   = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  final _emailFocus   = FocusNode();
+  final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
 
   @override
@@ -79,7 +80,7 @@ class _LoginFormState extends State<LoginForm> {
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => _submit(),
                 validator: (v) =>
-                (v == null || v.isEmpty) ? 'Password is required' : null,
+                    (v == null || v.isEmpty) ? 'Password is required' : null,
               ),
 
               // ── Inline error ───────────────────────────────────
@@ -88,16 +89,19 @@ class _LoginFormState extends State<LoginForm> {
                 _ErrorBanner(message: state.errorMessage!),
               ],
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
 
               FilledButton(
                 onPressed: state.isLoading ? null : _submit,
-                style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52)),
                 child: state.isLoading
                     ? const SizedBox(
-                    height: 20, width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2.5))
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Text('Log in'),
               ),
             ],
@@ -114,22 +118,28 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.errorSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFECACA)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, size: 18, color: scheme.onErrorContainer),
+          const Icon(Icons.error_rounded, size: 18, color: AppColors.error),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message,
-                style:
-                TextStyle(color: scheme.onErrorContainer, fontSize: 13)),
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.error,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
           ),
         ],
       ),

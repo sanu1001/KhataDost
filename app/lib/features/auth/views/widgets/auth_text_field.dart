@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 /// A styled text field used across all auth forms.
 /// Handles obscure toggle, keyboard type, input formatters, and validation.
+/// Visuals come from the global InputDecorationTheme — this widget only adds
+/// the icons and the show/hide password affordance.
 class AuthTextField extends StatefulWidget {
   const AuthTextField({
     super.key,
@@ -61,21 +65,31 @@ class _AuthTextFieldState extends State<AuthTextField> {
       onFieldSubmitted: widget.onFieldSubmitted,
       autofillHints: widget.autofillHints,
       maxLength: widget.maxLength,
+      style: const TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+      ),
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
         counterText: '',
-        prefixIcon: widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
+        prefixIcon: widget.prefixIcon != null
+            ? Icon(widget.prefixIcon, size: 21, color: AppColors.textHint)
+            : null,
         suffixIcon: widget.obscure
             ? IconButton(
-          icon: Icon(
-            _obscured ? Icons.visibility_off : Icons.visibility,
-          ),
-          onPressed: () => setState(() => _obscured = !_obscured),
-          tooltip: _obscured ? 'Show password' : 'Hide password',
-        )
+                icon: Icon(
+                  _obscured
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: 21,
+                  color: AppColors.textHint,
+                ),
+                onPressed: () => setState(() => _obscured = !_obscured),
+                tooltip: _obscured ? 'Show password' : 'Hide password',
+              )
             : null,
-        border: const OutlineInputBorder(),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/theme/app_theme.dart';
 import '../../bloc/auth_bloc.dart';
 import '../../bloc/auth_event.dart';
 import '../../bloc/auth_state.dart';
@@ -17,31 +18,37 @@ class RegisterForm extends StatefulWidget {
 class _RegisterFormState extends State<RegisterForm> {
   final _formKey = GlobalKey<FormState>();
 
-  final _nameCtrl       = TextEditingController();
-  final _shopNameCtrl   = TextEditingController();
-  final _phoneCtrl      = TextEditingController();
-  final _emailCtrl      = TextEditingController();
-  final _passwordCtrl   = TextEditingController();
-  final _confirmPwCtrl  = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _shopNameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _confirmPwCtrl = TextEditingController();
   final _accessCodeCtrl = TextEditingController();
 
-  final _nameFocus       = FocusNode();
-  final _shopNameFocus   = FocusNode();
-  final _phoneFocus      = FocusNode();
-  final _emailFocus      = FocusNode();
-  final _passwordFocus   = FocusNode();
-  final _confirmPwFocus  = FocusNode();
+  final _nameFocus = FocusNode();
+  final _shopNameFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmPwFocus = FocusNode();
   final _accessCodeFocus = FocusNode();
 
   @override
   void dispose() {
-    _nameCtrl.dispose(); _shopNameCtrl.dispose();
-    _phoneCtrl.dispose(); _emailCtrl.dispose();
-    _passwordCtrl.dispose(); _confirmPwCtrl.dispose();
+    _nameCtrl.dispose();
+    _shopNameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _confirmPwCtrl.dispose();
     _accessCodeCtrl.dispose();
-    _nameFocus.dispose(); _shopNameFocus.dispose();
-    _phoneFocus.dispose(); _emailFocus.dispose();
-    _passwordFocus.dispose(); _confirmPwFocus.dispose();
+    _nameFocus.dispose();
+    _shopNameFocus.dispose();
+    _phoneFocus.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmPwFocus.dispose();
     _accessCodeFocus.dispose();
     super.dispose();
   }
@@ -180,16 +187,19 @@ class _RegisterFormState extends State<RegisterForm> {
                 _ErrorBanner(message: state.errorMessage!),
               ],
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
 
               FilledButton(
                 onPressed: state.isLoading ? null : _submit,
-                style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52)),
                 child: state.isLoading
                     ? const SizedBox(
-                    height: 20, width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2.5))
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Text('Create account'),
               ),
             ],
@@ -206,22 +216,28 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.errorSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFECACA)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, size: 18, color: scheme.onErrorContainer),
+          const Icon(Icons.error_rounded, size: 18, color: AppColors.error),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message,
-                style: TextStyle(
-                    color: scheme.onErrorContainer, fontSize: 13)),
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.error,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
           ),
         ],
       ),

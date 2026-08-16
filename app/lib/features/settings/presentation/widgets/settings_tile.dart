@@ -32,18 +32,43 @@ class SettingsTile extends StatelessWidget {
     final Color iconColor = destructive
         ? AppColors.error
         : (enabled ? AppColors.primary : AppColors.textHint);
+    final Color iconBg = destructive
+        ? AppColors.errorSurface
+        : (enabled ? AppColors.primarySurface : AppColors.surfaceVariant);
 
     return ListTile(
       enabled: enabled,
-      leading: Icon(icon, color: iconColor),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: iconBg,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
       title: Text(
         title,
-        style: TextStyle(color: titleColor, fontWeight: FontWeight.w500),
+        style: TextStyle(
+          color: titleColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 14.5,
+        ),
       ),
-      subtitle: subtitle == null ? null : Text(subtitle!),
+      subtitle: subtitle == null
+          ? null
+          : Text(
+              subtitle!,
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AppColors.textHint,
+              ),
+            ),
       trailing: trailing ??
           (onTap != null && enabled
-              ? const Icon(Icons.chevron_right, color: AppColors.textHint)
+              ? const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textHint)
               : null),
       onTap: enabled ? onTap : null,
     );

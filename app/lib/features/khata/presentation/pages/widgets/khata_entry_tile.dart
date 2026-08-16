@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_theme.dart';
 import '../../../../bills/presentation/pages/widgets/formats.dart';
 import '../../../domain/entities/khata_entry.dart';
 
@@ -23,50 +24,91 @@ class KhataEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final isCredit = entry.isCredit;
 
-    // Credit = dues up (error tint); payment = money in (primary tint).
-    final accent = isCredit ? scheme.error : scheme.primary;
+    // Credit = dues up (red); payment = money in (green).
+    final accent = isCredit ? AppColors.error : AppColors.success;
+    final accentBg = isCredit ? AppColors.errorSurface : AppColors.successSurface;
 
-    return ListTile(
-      onTap: onTap,
-      leading: CircleAvatar(
-        backgroundColor: accent.withOpacity(0.12),
-        child: Icon(
-          isCredit ? Icons.receipt_long_outlined : Icons.payments_outlined,
-          color: accent,
-          size: 20,
+    return Material(
+      color: AppColors.cardBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: const BorderSide(color: AppColors.divider),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: accentBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isCredit
+                      ? Icons.receipt_long_outlined
+                      : Icons.payments_outlined,
+                  color: accent,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isCredit ? 'Credit' : 'Payment received',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      onTap != null
+                          ? '${formatBillDate(entry.createdAt)} · tap for items'
+                          : formatBillDate(entry.createdAt),
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${isCredit ? '+' : '−'}₹${formatMoney(entry.amount)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14.5,
+                      color: accent,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'bal ₹${formatMoney(runningBalance)}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textHint,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-      title: Text(
-        isCredit ? 'Credit' : 'Payment',
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(
-        onTap != null
-            ? '${formatBillDate(entry.createdAt)} · tap for items'
-            : formatBillDate(entry.createdAt),
-        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            '${isCredit ? '+' : '−'}₹${formatMoney(entry.amount)}',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-              color: accent,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'bal ₹${formatMoney(runningBalance)}',
-            style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
-          ),
-        ],
       ),
     );
   }

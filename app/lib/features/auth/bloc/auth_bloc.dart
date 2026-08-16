@@ -34,9 +34,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final token = await _repo.getSavedToken();
 
       if (token != null && token.isNotEmpty) {
-        // Token exists → user is considered authenticated for now.
-        // Phase 4: call a /me endpoint here and populate the User object.
-        emit(state.copyWith(status: AuthStatus.authenticated, clearError: true));
+        // Cold-start hydration: restore the user snapshot persisted at
+        // login/register so state.user is populated BEFORE `authenticated`
+        // is emitted (the dashboard greeting reads it via context.read in
+        // build — it must be there on first build; a later re-emit would
+        // not repaint it).
+        //
+        // No /v1/me call here on purpose: token validity is enforced by the
+        // first protected request anyway (dead token → 401 → DioClient's
+        // onUnauthorized → LogoutRequested), and blocking the splash on the
+        // network would degrade offline/server-down cold starts. Settings
+        // fetches /v1/me fresh whenever the profile is actually viewed.
+        //
+        // savedUser may be null on installs that logged in before user
+        // persistence shipped — UI falls back gracefully; next login fixes it.
+        final savedUser = await _repo.getSavedUser();
+        emit(state.copyWith(
+          status: AuthStatus.authenticated,
+          user: savedUser,
+          clearError: true,
+        ));
       } else {
         emit(state.copyWith(status: AuthStatus.unauthenticated, clearError: true));
       }

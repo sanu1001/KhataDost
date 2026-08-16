@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../core/navigation/navigation_cubit.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/confirm_dialog.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/bloc/auth_event.dart';
 import '../bloc/settings_bloc.dart';
@@ -44,28 +45,16 @@ class _SettingsViewState extends State<_SettingsView> {
   }
 
   Future<void> _confirmLogout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log out of KhataDost?'),
-        content: const Text(
-          'You will need to log in again to access your shop.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Log out'),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Log out of KhataDost?',
+      message: 'You will need to log in again to access your shop.',
+      confirmLabel: 'Log out',
+      destructive: true,
+      icon: Icons.logout_rounded,
     );
 
-    if (confirmed != true) return;
+    if (!confirmed) return;
     if (!mounted) return;
 
     // Read-only reuse of the frozen AuthBloc's public event:
@@ -81,6 +70,7 @@ class _SettingsViewState extends State<_SettingsView> {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
+        padding: const EdgeInsets.only(bottom: 16),
         children: [
           // ── Profile ─────────────────────────────────────────────────────
           BlocBuilder<SettingsBloc, SettingsState>(
@@ -102,39 +92,78 @@ class _SettingsViewState extends State<_SettingsView> {
 
           // ── Account ─────────────────────────────────────────────────────
           const _SectionHeader('Account'),
-          SettingsTile(
-            icon: Icons.lock_outline,
-            title: 'Change password',
-            onTap: () => context.read<NavigationCubit>().pushChangePassword(),
-          ),
-          SettingsTile(
-            icon: Icons.logout,
-            title: 'Log out',
-            destructive: true,
-            onTap: _confirmLogout,
+          _SectionCard(
+            children: [
+              SettingsTile(
+                icon: Icons.lock_outline_rounded,
+                title: 'Change password',
+                onTap: () =>
+                    context.read<NavigationCubit>().pushChangePassword(),
+              ),
+              const _TileDivider(),
+              SettingsTile(
+                icon: Icons.logout_rounded,
+                title: 'Log out',
+                destructive: true,
+                onTap: _confirmLogout,
+              ),
+            ],
           ),
 
           // ── Preferences (Coming soon stubs) ───────────────────────────────
           const _SectionHeader('Preferences'),
-          const SettingsTile(
-            icon: Icons.language,
-            title: 'Language',
-            subtitle: 'Coming soon',
-            enabled: false,
-          ),
-          const SettingsTile(
-            icon: Icons.dark_mode_outlined,
-            title: 'Theme',
-            subtitle: 'Coming soon',
-            enabled: false,
+          const _SectionCard(
+            children: [
+              SettingsTile(
+                icon: Icons.language_rounded,
+                title: 'Language',
+                subtitle: 'Coming soon',
+                enabled: false,
+              ),
+              _TileDivider(),
+              SettingsTile(
+                icon: Icons.dark_mode_outlined,
+                title: 'Theme',
+                subtitle: 'Coming soon',
+                enabled: false,
+              ),
+            ],
           ),
 
-          const SizedBox(height: 8),
-          const Divider(height: 1, color: AppColors.divider),
           const AboutSection(),
         ],
       ),
     );
+  }
+}
+
+/// Tiles grouped on one white card per section.
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: children),
+    );
+  }
+}
+
+class _TileDivider extends StatelessWidget {
+  const _TileDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Divider(height: 1, indent: 64);
   }
 }
 
@@ -146,13 +175,13 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 8),
       child: Text(
         title.toUpperCase(),
         style: const TextStyle(
-          fontSize: 12,
+          fontSize: 11.5,
           fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
+          letterSpacing: 0.8,
           color: AppColors.textSecondary,
         ),
       ),
@@ -166,14 +195,25 @@ class _ProfileLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 132,
+      height: 148,
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.gradientStart, AppColors.gradientEnd],
+        ),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: const Center(
-        child: CircularProgressIndicator(color: Colors.white),
+        child: SizedBox(
+          width: 26,
+          height: 26,
+          child: CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2.5,
+          ),
+        ),
       ),
     );
   }
@@ -193,19 +233,28 @@ class _ProfileError extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.errorSurface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFECACA)),
       ),
       child: Column(
         children: [
-          const Icon(Icons.error_outline, color: AppColors.error),
+          const Icon(Icons.error_outline_rounded, color: AppColors.error),
           const SizedBox(height: 8),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.error),
+            style: const TextStyle(
+              color: AppColors.error,
+              fontWeight: FontWeight.w600,
+              fontSize: 13.5,
+            ),
           ),
-          const SizedBox(height: 12),
-          TextButton(onPressed: onRetry, child: const Text('Retry')),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Retry'),
+          ),
         ],
       ),
     );
