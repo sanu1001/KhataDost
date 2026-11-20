@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -17,9 +19,15 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	// Settings come from environment variables. A .env file is optional:
+	// `go run` on a laptop reads backend/.env, while Docker passes the same
+	// variables in through docker-compose and has no .env inside the image.
+	// A .env that exists but can't be read is still a fatal error.
+	if err := godotenv.Load(); err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			log.Fatalf("could not read .env: %v", err)
+		}
+		log.Println("no .env file, reading settings from the environment only")
 	}
 
 	database := db.Connect(os.Getenv("DATABASE_URL"))
