@@ -83,7 +83,7 @@ func main() {
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "KhataDost backend is runningg!")
+		fmt.Fprintln(w, "KhataDost backend is running")
 	})
 
 	// public routes
