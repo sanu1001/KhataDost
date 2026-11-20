@@ -46,14 +46,20 @@ FROM item_variants
 WHERE id = $1;
 
 -- name: UpdateVariant :one
+-- Scoped by id AND item_id. Variants carry no user_id: the service first
+-- proves the shop owns item_id (GetItemByID), and this WHERE makes sure the
+-- variant really belongs to that item. Without the item_id check, a shop
+-- could edit another shop's variant by pairing its own item id with a
+-- foreign variant id. No match → sql.ErrNoRows → 404.
 UPDATE item_variants
-SET label = $2, price = $3, is_default = $4, description = $5, updated_at = NOW()
-WHERE id = $1
+SET label = $3, price = $4, is_default = $5, description = $6, updated_at = NOW()
+WHERE id = $1 AND item_id = $2
 RETURNING id, item_id, label, price, is_default, description, created_at, updated_at;
 
 -- name: DeleteVariant :exec
+-- Scoped by id AND item_id, for the same reason as UpdateVariant.
 DELETE FROM item_variants
-WHERE id = $1;
+WHERE id = $1 AND item_id = $2;
 
 -- name: ListItemsWithVariants :many
 -- LEFT JOIN so Type B (loose) items with zero variants still appear.

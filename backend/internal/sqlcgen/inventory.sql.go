@@ -110,11 +110,17 @@ func (q *Queries) DeleteItem(ctx context.Context, arg DeleteItemParams) error {
 
 const deleteVariant = `-- name: DeleteVariant :exec
 DELETE FROM item_variants
-WHERE id = $1
+WHERE id = $1 AND item_id = $2
 `
 
-func (q *Queries) DeleteVariant(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteVariant, id)
+type DeleteVariantParams struct {
+	ID     uuid.UUID
+	ItemID uuid.UUID
+}
+
+// Scoped by id AND item_id, for the same reason as UpdateVariant.
+func (q *Queries) DeleteVariant(ctx context.Context, arg DeleteVariantParams) error {
+	_, err := q.db.ExecContext(ctx, deleteVariant, arg.ID, arg.ItemID)
 	return err
 }
 
@@ -295,22 +301,29 @@ func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (Item, e
 
 const updateVariant = `-- name: UpdateVariant :one
 UPDATE item_variants
-SET label = $2, price = $3, is_default = $4, description = $5, updated_at = NOW()
-WHERE id = $1
+SET label = $3, price = $4, is_default = $5, description = $6, updated_at = NOW()
+WHERE id = $1 AND item_id = $2
 RETURNING id, item_id, label, price, is_default, description, created_at, updated_at
 `
 
 type UpdateVariantParams struct {
 	ID          uuid.UUID
+	ItemID      uuid.UUID
 	Label       string
 	Price       string
 	IsDefault   bool
 	Description sql.NullString
 }
 
+// Scoped by id AND item_id. Variants carry no user_id: the service first
+// proves the shop owns item_id (GetItemByID), and this WHERE makes sure the
+// variant really belongs to that item. Without the item_id check, a shop
+// could edit another shop's variant by pairing its own item id with a
+// foreign variant id. No match → sql.ErrNoRows → 404.
 func (q *Queries) UpdateVariant(ctx context.Context, arg UpdateVariantParams) (ItemVariant, error) {
 	row := q.db.QueryRowContext(ctx, updateVariant,
 		arg.ID,
+		arg.ItemID,
 		arg.Label,
 		arg.Price,
 		arg.IsDefault,

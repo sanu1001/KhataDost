@@ -60,8 +60,8 @@ type InventoryRepository interface {
 	UpdateItem(ctx context.Context, id, userID uuid.UUID, name string, rate *float64, unit *string) (*Item, error)
 	DeleteItem(ctx context.Context, id, userID uuid.UUID) error
 	CreateVariant(ctx context.Context, itemID uuid.UUID, label string, price float64, isDefault bool, description *string) (*Variant, error)
-	UpdateVariant(ctx context.Context, variantID uuid.UUID, label string, price float64, isDefault bool, description *string) (*Variant, error)
-	DeleteVariant(ctx context.Context, variantID uuid.UUID) error
+	UpdateVariant(ctx context.Context, itemID, variantID uuid.UUID, label string, price float64, isDefault bool, description *string) (*Variant, error)
+	DeleteVariant(ctx context.Context, itemID, variantID uuid.UUID) error
 }
 
 type inventoryRepository struct {
@@ -310,11 +310,13 @@ func (r *inventoryRepository) CreateVariant(
 }
 
 // ── UpdateVariant ───────────────────────────────────────────────────────────
-// Update one variant by its own id. No user_id scope (see CreateVariant note);
-// the service proves parent ownership before calling.
+// Update one variant, scoped by its id AND its parent item id. The service
+// proves the shop owns the item before calling; the item_id in the WHERE
+// proves the variant belongs to that item. A variant of some other item
+// (or another shop's item) matches no row → ErrVariantNotFound.
 func (r *inventoryRepository) UpdateVariant(
 	ctx context.Context,
-	variantID uuid.UUID,
+	itemID, variantID uuid.UUID,
 	label string,
 	price float64,
 	isDefault bool,
@@ -322,6 +324,7 @@ func (r *inventoryRepository) UpdateVariant(
 ) (*Variant, error) {
 	row, err := r.queries.UpdateVariant(ctx, sqlcgen.UpdateVariantParams{
 		ID:          variantID,
+		ItemID:      itemID,
 		Label:       label,
 		Price:       floatToString(price),
 		IsDefault:   isDefault,
@@ -338,9 +341,13 @@ func (r *inventoryRepository) UpdateVariant(
 }
 
 // ── DeleteVariant ───────────────────────────────────────────────────────────
-// Delete one variant by its own id. No user_id scope (see CreateVariant note).
-func (r *inventoryRepository) DeleteVariant(ctx context.Context, variantID uuid.UUID) error {
-	err := r.queries.DeleteVariant(ctx, variantID)
+// Delete one variant, scoped by its id AND its parent item id (same reason as
+// UpdateVariant).
+func (r *inventoryRepository) DeleteVariant(ctx context.Context, itemID, variantID uuid.UUID) error {
+	err := r.queries.DeleteVariant(ctx, sqlcgen.DeleteVariantParams{
+		ID:     variantID,
+		ItemID: itemID,
+	})
 	if err != nil {
 		return fmt.Errorf("DeleteVariant: %w", err)
 	}

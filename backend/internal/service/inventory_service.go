@@ -163,6 +163,8 @@ func (s *inventoryService) AddVariant(
 // ── UpdateVariant — prove parent ownership, then update ─────────────────────
 // Variants carry no user_id, so we MUST verify the caller owns the parent item
 // before touching the variant (transitive tenancy). Same fetch-first guard.
+// The repository then scopes the update by item_id too, so the variant id
+// must belong to THIS item: owning some item is not enough.
 func (s *inventoryService) UpdateVariant(
 	ctx context.Context,
 	itemID, variantID, userID uuid.UUID,
@@ -172,7 +174,7 @@ func (s *inventoryService) UpdateVariant(
 	if _, err := s.repo.GetItemByID(ctx, itemID, userID); err != nil {
 		return nil, err
 	}
-	return s.repo.UpdateVariant(ctx, variantID, p.Label, p.Price, p.IsDefault, p.Description)
+	return s.repo.UpdateVariant(ctx, itemID, variantID, p.Label, p.Price, p.IsDefault, p.Description)
 }
 
 // ── DeleteVariant — prove parent ownership, then delete ─────────────────────
@@ -180,7 +182,7 @@ func (s *inventoryService) DeleteVariant(ctx context.Context, itemID, variantID,
 	if _, err := s.repo.GetItemByID(ctx, itemID, userID); err != nil {
 		return err
 	}
-	return s.repo.DeleteVariant(ctx, variantID)
+	return s.repo.DeleteVariant(ctx, itemID, variantID)
 }
 
 // ── Validation — pure functions, dispatched on the discriminator ────────────
