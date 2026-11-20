@@ -53,7 +53,7 @@ type scanUnmatchedResponse struct {
 // Both slices are always non-nil → JSON emits [] (an empty counter photo is a
 // 200 with two empty arrays, not an error — the manual on-ramp always works).
 type scanResponse struct {
-	Matches   []scanMatchResponse   `json:"matches"`
+	Matches   []scanMatchResponse     `json:"matches"`
 	Unmatched []scanUnmatchedResponse `json:"unmatched"`
 }
 

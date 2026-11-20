@@ -18,7 +18,7 @@ import (
 type KhataEntry struct {
 	ID         string
 	CustomerID string
-	Type       string  // 'credit' | 'payment'
+	Type       string // 'credit' | 'payment'
 	Amount     float64
 	BillID     *string // nil for standalone payment entries
 	Note       *string

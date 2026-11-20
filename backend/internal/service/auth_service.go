@@ -15,33 +15,33 @@ import (
 )
 
 var (
-	ErrInvalidAccessCode = errors.New("invalid access code")
-	ErrEmailAlreadyInUse = errors.New("email already in use")
+	ErrInvalidAccessCode  = errors.New("invalid access code")
+	ErrEmailAlreadyInUse  = errors.New("email already in use")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 )
 
 type AuthService interface {
-	Register(ctx context.Context, params RegisterParams) (AuthResult , error)
-	Login(ctx context.Context, params LoginParams) (AuthResult , error)
+	Register(ctx context.Context, params RegisterParams) (AuthResult, error)
+	Login(ctx context.Context, params LoginParams) (AuthResult, error)
 }
 
 type RegisterParams struct {
-	Name string
-	ShopName string
-	Phone string
-	Email string
-	Password string
+	Name       string
+	ShopName   string
+	Phone      string
+	Email      string
+	Password   string
 	AccessCode string
 }
 
 type LoginParams struct {
-	Email string
+	Email    string
 	Password string
 }
 
 type AuthResult struct {
 	Token string
-	User sqlcgen.User
+	User  sqlcgen.User
 }
 
 type authService struct {
@@ -52,7 +52,7 @@ func NewAuthService(repo repository.AuthRepository) AuthService {
 	return &authService{repo: repo}
 }
 
-func (s *authService) Register(ctx context.Context, params RegisterParams) (AuthResult , error) {
+func (s *authService) Register(ctx context.Context, params RegisterParams) (AuthResult, error) {
 	if params.AccessCode != os.Getenv("ACCESS_CODE") {
 		return AuthResult{}, ErrInvalidAccessCode
 	}
@@ -61,11 +61,11 @@ func (s *authService) Register(ctx context.Context, params RegisterParams) (Auth
 		return AuthResult{}, errors.New("could not hash password")
 	}
 
-	user , err := s.repo.CreateUser(ctx , sqlcgen.CreateUserParams{
-		Name: params.Name,
+	user, err := s.repo.CreateUser(ctx, sqlcgen.CreateUserParams{
+		Name:     params.Name,
 		ShopName: params.ShopName,
-		Phone: params.Phone,
-		Email: params.Email,
+		Phone:    params.Phone,
+		Email:    params.Email,
 		Password: string(hashed),
 	})
 	if err != nil {
@@ -82,24 +82,24 @@ func (s *authService) Register(ctx context.Context, params RegisterParams) (Auth
 	if err != nil {
 		return AuthResult{}, err
 	}
-    
+
 	return AuthResult{Token: token, User: user}, nil
 }
 
-func (s *authService) Login(ctx context.Context, params LoginParams) (AuthResult , error) {
+func (s *authService) Login(ctx context.Context, params LoginParams) (AuthResult, error) {
 	user, err := s.repo.GetUserByEmail(ctx, params.Email)
 	if err != nil {
 		return AuthResult{}, ErrInvalidCredentials
 	}
 
-	err =  bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(params.Password))
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(params.Password))
 	if err != nil {
-		return AuthResult{} , ErrInvalidCredentials
+		return AuthResult{}, ErrInvalidCredentials
 	}
 
-	token , err := generateJWT(user.ID)
+	token, err := generateJWT(user.ID)
 	if err != nil {
-		return AuthResult{} , err
+		return AuthResult{}, err
 	}
 	return AuthResult{Token: token, User: user}, nil
 }
@@ -109,7 +109,7 @@ func generateJWT(userID uuid.UUID) (string, error) {
 
 	claims := jwt.MapClaims{
 		"sub": userID.String(),
-		"exp": time.Now().Add(30 * 24 *time.Hour).Unix(),
+		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(),
 		"iat": time.Now().Unix(),
 	}
 

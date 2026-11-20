@@ -17,31 +17,30 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 }
 
 type registerRequest struct {
-	Name string `json:"name"`
-	ShopName string `json:"shop_name"`
-	Phone string `json:"phone"`
-	Email string `json:"email"`
-	Password string `json:"password"`
+	Name       string `json:"name"`
+	ShopName   string `json:"shop_name"`
+	Phone      string `json:"phone"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
 	AccessCode string `json:"access_code"`
-
 }
 
 type loginRequest struct {
-	Email string `json:"email"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 type userResponse struct {
-	ID string `json:"id"`
-	Name string `json:"name"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
 	ShopName string `json:"shop_name"`
-	Email string `json:"email"`
-	Phone string `json:"phone"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
 }
 
 type authResponse struct {
-	Token string `json:"token"`
-	User userResponse `json:"user"`
+	Token string       `json:"token"`
+	User  userResponse `json:"user"`
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
@@ -56,39 +55,37 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result , err := h.authService.Register(r.Context(), service.RegisterParams{
-		Name: req.Name,
-		ShopName: req.ShopName,
-		Phone: req.Phone,
-		Email: req.Email,
-		Password: req.Password,
+	result, err := h.authService.Register(r.Context(), service.RegisterParams{
+		Name:       req.Name,
+		ShopName:   req.ShopName,
+		Phone:      req.Phone,
+		Email:      req.Email,
+		Password:   req.Password,
 		AccessCode: req.AccessCode,
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidAccessCode) {
-    		writeError(w, "invalid access code", http.StatusForbidden)
+			writeError(w, "invalid access code", http.StatusForbidden)
 		} else if errors.Is(err, service.ErrEmailAlreadyInUse) {
-    		writeError(w, "email already in use", http.StatusConflict)
+			writeError(w, "email already in use", http.StatusConflict)
 		} else {
-    		writeError(w, "something went wrong", http.StatusInternalServerError)
+			writeError(w, "something went wrong", http.StatusInternalServerError)
 		}
 		return
 	}
 
-
 	writeJSON(w, authResponse{
 		Token: result.Token,
 		User: userResponse{
-			ID: result.User.ID.String(),
-			Name: result.User.Name,
+			ID:       result.User.ID.String(),
+			Name:     result.User.Name,
 			ShopName: result.User.ShopName,
-			Email: result.User.Email,
-			Phone: result.User.Phone,
+			Email:    result.User.Email,
+			Phone:    result.User.Phone,
 		},
 	}, http.StatusCreated)
 
 }
-
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
@@ -102,8 +99,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result , err := h.authService.Login(r.Context(), service.LoginParams{
-		Email: req.Email,
+	result, err := h.authService.Login(r.Context(), service.LoginParams{
+		Email:    req.Email,
 		Password: req.Password,
 	})
 	if err != nil {
@@ -113,12 +110,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, authResponse{
 		Token: result.Token,
-		User: userResponse{	
-			ID: result.User.ID.String(),
-			Name: result.User.Name,
-			ShopName: result.User.ShopName,	
-			Email: result.User.Email,
-			Phone: result.User.Phone,
+		User: userResponse{
+			ID:       result.User.ID.String(),
+			Name:     result.User.Name,
+			ShopName: result.User.ShopName,
+			Email:    result.User.Email,
+			Phone:    result.User.Phone,
 		},
 	}, http.StatusOK)
 }
@@ -131,4 +128,3 @@ func writeJSON(w http.ResponseWriter, data any, status int) {
 func writeError(w http.ResponseWriter, message string, status int) {
 	writeJSON(w, map[string]string{"error": message}, status)
 }
-
