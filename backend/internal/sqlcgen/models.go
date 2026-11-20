@@ -31,6 +31,7 @@ type BillItem struct {
 	UnitPrice string
 	LineTotal string
 	CreatedAt time.Time
+	LineNo    int32
 }
 
 type Customer struct {

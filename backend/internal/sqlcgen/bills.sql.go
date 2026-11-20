@@ -55,9 +55,9 @@ func (q *Queries) CreateBill(ctx context.Context, arg CreateBillParams) (Bill, e
 }
 
 const createBillItem = `-- name: CreateBillItem :one
-INSERT INTO bill_items (bill_id, item_id, variant_id, name, quantity, unit_price, line_total)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, bill_id, item_id, variant_id, name, quantity, unit_price, line_total, created_at
+INSERT INTO bill_items (bill_id, item_id, variant_id, name, quantity, unit_price, line_total, line_no)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, bill_id, item_id, variant_id, name, quantity, unit_price, line_total, created_at, line_no
 `
 
 type CreateBillItemParams struct {
@@ -68,12 +68,16 @@ type CreateBillItemParams struct {
 	Quantity  string
 	UnitPrice string
 	LineTotal string
+	LineNo    int32
 }
 
 // Insert one line against an existing bill. Called N times by the repo inside
 // the settlement transaction. Stores the RESOLVED result (name + price + qty +
 // total) — item_id/variant_id are provenance pointers only, nullable by design
 // (NULL item_id = miscellaneous; NULL variant_id = Type B or miscellaneous).
+// line_no = the line's index on the bill (migration 007), so the lines can be
+// read back in the order they were added. It trails created_at in the column
+// list for the same reason as bills: DDL order lets sqlc reuse the BillItem model.
 func (q *Queries) CreateBillItem(ctx context.Context, arg CreateBillItemParams) (BillItem, error) {
 	row := q.db.QueryRowContext(ctx, createBillItem,
 		arg.BillID,
@@ -83,6 +87,7 @@ func (q *Queries) CreateBillItem(ctx context.Context, arg CreateBillItemParams) 
 		arg.Quantity,
 		arg.UnitPrice,
 		arg.LineTotal,
+		arg.LineNo,
 	)
 	var i BillItem
 	err := row.Scan(
@@ -95,6 +100,7 @@ func (q *Queries) CreateBillItem(ctx context.Context, arg CreateBillItemParams) 
 		&i.UnitPrice,
 		&i.LineTotal,
 		&i.CreatedAt,
+		&i.LineNo,
 	)
 	return i, err
 }
@@ -128,16 +134,17 @@ func (q *Queries) GetBillByID(ctx context.Context, arg GetBillByIDParams) (Bill,
 }
 
 const getBillItems = `-- name: GetBillItems :many
-SELECT id, bill_id, item_id, variant_id, name, quantity, unit_price, line_total, created_at
+SELECT id, bill_id, item_id, variant_id, name, quantity, unit_price, line_total, created_at, line_no
 FROM bill_items
 WHERE bill_id = $1
-ORDER BY created_at, id
+ORDER BY line_no, created_at, id
 `
 
 // Lines for one bill. NOTE: bill_items carry no user_id — tenancy is enforced
 // one level up by GetBillByID (transitive tenancy, same as item_variants).
 // created_at is NOW() = transaction start, so every line in a bill shares one
-// timestamp; the id tiebreak just makes the order deterministic.
+// timestamp, and random UUIDv4 ids carry no order. line_no is what keeps the
+// lines in the order they were added; (created_at, id) only orders old rows.
 func (q *Queries) GetBillItems(ctx context.Context, billID uuid.UUID) ([]BillItem, error) {
 	rows, err := q.db.QueryContext(ctx, getBillItems, billID)
 	if err != nil {
@@ -157,6 +164,7 @@ func (q *Queries) GetBillItems(ctx context.Context, billID uuid.UUID) ([]BillIte
 			&i.UnitPrice,
 			&i.LineTotal,
 			&i.CreatedAt,
+			&i.LineNo,
 		); err != nil {
 			return nil, err
 		}

@@ -118,7 +118,7 @@ func (r *billingRepository) CreateBillWithItems(
 
 	// 2. Insert each line against the just-created bill id.
 	created := make([]BillItem, 0, len(lines))
-	for _, l := range lines {
+	for i, l := range lines {
 		itemRow, err := qtx.CreateBillItem(ctx, sqlcgen.CreateBillItemParams{
 			BillID:    billRow.ID,
 			ItemID:    uuidPtrToNullUUID(l.ItemID),
@@ -127,6 +127,7 @@ func (r *billingRepository) CreateBillWithItems(
 			Quantity:  quantityToString(l.Quantity), // NUMERIC(12,3) → 3 decimals
 			UnitPrice: floatToString(l.UnitPrice),
 			LineTotal: floatToString(l.LineTotal),
+			LineNo:    int32(i), // keeps the order the lines were added in
 		})
 		if err != nil {
 			// deferred Rollback undoes the bill + any earlier lines
@@ -143,8 +144,8 @@ func (r *billingRepository) CreateBillWithItems(
 	//    'credit' entry  = bill total, linked to the bill (always, when on tab)
 	//    'payment' entry = amount_paid, no bill link (only if paid > 0)
 	//
-	//    Both entries share the transaction timestamp — the khata timeline
-	//    uses (created_at, id) for ordering so credit appears before payment.
+	//    Both entries share the transaction timestamp, and ids are random
+	//    UUIDv4, so ListKhataEntries breaks the tie on type: credit first.
 	if customerID != nil && math.Abs(amountPaid-total) >= 0.005 {
 		// 3a. Credit entry: the full bill total, linked to this bill.
 		_, err = qtx.InsertKhataEntry(ctx, sqlcgen.InsertKhataEntryParams{

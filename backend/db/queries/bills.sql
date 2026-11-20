@@ -16,9 +16,12 @@ RETURNING id, user_id, customer_name, amount, created_at, customer_id, amount_pa
 -- the settlement transaction. Stores the RESOLVED result (name + price + qty +
 -- total) — item_id/variant_id are provenance pointers only, nullable by design
 -- (NULL item_id = miscellaneous; NULL variant_id = Type B or miscellaneous).
-INSERT INTO bill_items (bill_id, item_id, variant_id, name, quantity, unit_price, line_total)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, bill_id, item_id, variant_id, name, quantity, unit_price, line_total, created_at;
+-- line_no = the line's index on the bill (migration 007), so the lines can be
+-- read back in the order they were added. It trails created_at in the column
+-- list for the same reason as bills: DDL order lets sqlc reuse the BillItem model.
+INSERT INTO bill_items (bill_id, item_id, variant_id, name, quantity, unit_price, line_total, line_no)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, bill_id, item_id, variant_id, name, quantity, unit_price, line_total, created_at, line_no;
 
 -- name: ListBills :many
 -- Full bill list for one shop, newest first. Backed by idx_bills_user_created_at
@@ -40,8 +43,9 @@ WHERE id = $1 AND user_id = $2;
 -- Lines for one bill. NOTE: bill_items carry no user_id — tenancy is enforced
 -- one level up by GetBillByID (transitive tenancy, same as item_variants).
 -- created_at is NOW() = transaction start, so every line in a bill shares one
--- timestamp; the id tiebreak just makes the order deterministic.
-SELECT id, bill_id, item_id, variant_id, name, quantity, unit_price, line_total, created_at
+-- timestamp, and random UUIDv4 ids carry no order. line_no is what keeps the
+-- lines in the order they were added; (created_at, id) only orders old rows.
+SELECT id, bill_id, item_id, variant_id, name, quantity, unit_price, line_total, created_at, line_no
 FROM bill_items
 WHERE bill_id = $1
-ORDER BY created_at, id;
+ORDER BY line_no, created_at, id;

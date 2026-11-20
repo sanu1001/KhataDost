@@ -54,9 +54,10 @@ type InsertKhataEntryParams struct {
 
 // Insert one khata entry ('credit' or 'payment') for a customer.
 // Called in two places:
-//   1. Inside the billing settlement transaction (credit + optional payment
-//      written by billing_repository.CreateBillWithItems via the shared tx).
-//   2. Directly by the "Record Payment" endpoint (payment only).
+//  1. Inside the billing settlement transaction (credit + optional payment
+//     written by billing_repository.CreateBillWithItems via the shared tx).
+//  2. Directly by the "Record Payment" endpoint (payment only).
+//
 // bill_id is set only for 'credit' entries; NULL for standalone 'payment'.
 func (q *Queries) InsertKhataEntry(ctx context.Context, arg InsertKhataEntryParams) (KhataEntry, error) {
 	row := q.db.QueryRowContext(ctx, insertKhataEntry,
@@ -85,7 +86,7 @@ const listKhataEntries = `-- name: ListKhataEntries :many
 SELECT id, user_id, customer_id, type, amount, bill_id, note, created_at
 FROM khata_entries
 WHERE user_id = $1 AND customer_id = $2
-ORDER BY created_at, id
+ORDER BY created_at, CASE type WHEN 'credit' THEN 0 ELSE 1 END, id
 `
 
 type ListKhataEntriesParams struct {
@@ -93,9 +94,13 @@ type ListKhataEntriesParams struct {
 	CustomerID uuid.UUID
 }
 
-// Chronological ledger for one customer of one shop (timeline view).
-// Oldest first — credits and payments within the same settlement transaction
-// share the tx timestamp; id breaks ties deterministically.
+// Chronological ledger for one customer of one shop (timeline view), oldest
+// first. A bill settled short writes its credit AND its payment in one
+// transaction, so both rows get the same created_at (NOW() is fixed for the
+// whole transaction). The ids are random UUIDv4 and say nothing about order,
+// so the tiebreak puts the credit before the payment explicitly; id is only
+// the last, deterministic fallback. Without this the app's running-balance
+// column could show the payment first (e.g. -300, then 200).
 func (q *Queries) ListKhataEntries(ctx context.Context, arg ListKhataEntriesParams) ([]KhataEntry, error) {
 	rows, err := q.db.QueryContext(ctx, listKhataEntries, arg.UserID, arg.CustomerID)
 	if err != nil {
