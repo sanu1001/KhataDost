@@ -1,241 +1,270 @@
-# KhataDost — Architecture
+# KhataDost architecture
+
+How the whole system fits together, as the code stands on the `revision-cleanup` branch. The design doc for each feature (written before the code) is in [`docs/features/`](features/); where this file and a feature doc disagree, this file and the code win.
 
 ---
 
-## Overview
+## 1. The big picture
 
-KhataDost is a monorepo containing two independent projects:
+```mermaid
+flowchart LR
+    App["Flutter app<br/>(phone, simulator or emulator)"] -- "HTTPS or HTTP + JWT<br/>JSON" --> API["Go API<br/>Chi · port 8080"]
+    API -- "SQL via sqlc + pgx" --> DB[("PostgreSQL 16")]
+    API -- "image + prompt<br/>(key in header)" --> Gemini["Google Gemini<br/>2.5 Flash"]
+```
 
-- **`/app`** — Flutter mobile client
-- **`/backend`** — Go REST API
-
-They communicate over HTTP. The app holds no business logic — all validation, computation, and persistence lives in the backend. The app's job is to present data and dispatch user intent.
+- **The app holds no business rules that matter.** It shows data, collects input and does advisory maths for live totals. The server validates everything, recomputes every money figure and owns all persistence.
+- **The Gemini key lives only on the server.** Anything inside an APK can be extracted, so the app sends the photo to the backend and the backend calls Gemini.
+- **Many shops share one database.** Each shop is a row in `users`, and every query is scoped by the `user_id` taken from the verified token, never from the request body.
 
 ---
 
-## Mobile Client (`/app`)
+## 2. Backend (`backend/`)
 
-### Pattern: Feature-first Clean Architecture + Pure BLoC
+### Layers
 
-The app is organised by feature. Each feature is self-contained with its own data, domain, and presentation layers. Nothing leaks across feature boundaries except through `core/`.
+```
+HTTP request
+  → Chi router            cmd/api/main.go       routes, request logging, panic recovery
+  → RequireAuth           internal/middleware   checks the JWT, puts user_id in the context
+  → Handler               internal/handler      decode + validate JSON, map errors to status codes
+  → Service               internal/service      business rules, sentinel errors
+  → Repository            internal/repository   sqlc calls, database types → plain Go types, transactions
+  → sqlcgen               internal/sqlcgen      generated from db/queries/*.sql (never edited by hand)
+  → PostgreSQL
+```
+
+Rules that keep the layers clean:
+
+- Handlers never touch SQL; repositories never touch HTTP.
+- A broken business rule is a **sentinel error** (a named value such as `service.ErrCustomerHasDues`). Handlers match it with `errors.Is` and pick the status code; anything unknown becomes a generic 500 with no internal detail.
+- Repositories turn database errors into their own sentinels (`ErrCustomerNotFound`, `ErrDuplicatePhone`, `ErrDuplicateDefault`, ...) and wrap the rest with `fmt.Errorf("MethodName: %w", err)`.
+- Repositories return plain Go structs: `NUMERIC` strings become `float64`, nullable text becomes `*string`, UUIDs become strings. No `database/sql` or sqlc types leak upward.
+
+### Wiring
+
+`main.go` builds every feature by hand, bottom up: repository → service → handler, then registers the routes. There is no DI framework. A few services reuse another feature's repository, read-only:
+
+| Service | Reuses | Why |
+|---|---|---|
+| billing | customer repository | prove the customer belongs to this shop, and snapshot their name on the bill |
+| khata | customer repository | prove the customer belongs to this shop |
+| scan | inventory repository | the shop's items are the pool that detections are matched against |
+
+### Startup and shutdown
+
+- Settings come from environment variables. `backend/.env` is loaded if it exists (local `go run`); in Docker the variables come from `docker-compose.yml` and there is no `.env` in the image.
+- The server stops at startup if `DATABASE_URL` or `JWT_SECRET` is missing, and warns if `ACCESS_CODE` or `GEMINI_API_KEY` is empty. `PORT` defaults to 8080.
+- `http.Server` timeouts: 10 s for headers, 60 s to read and write (enough for a ~10 MB scan photo and the 30 s Gemini call), 120 s idle.
+- On Ctrl+C or SIGTERM (what `docker compose down` sends) the server stops accepting requests and gives in-flight ones 10 s to finish.
+
+### Auth
+
+- **Register** needs the shop's details plus `access_code`, compared with `ACCESS_CODE`, so only invited shops can sign up. The password is hashed with bcrypt. A duplicate email is 409; any other failure is 500.
+- **Login** compares the bcrypt hash and returns a JWT: HS256, signed with `JWT_SECRET`, claims `sub` (user id), `iat`, `exp` (30 days).
+- **RequireAuth** accepts only `Authorization: Bearer <token>`, rejects any signing method other than HMAC, checks expiry, parses `sub` as a UUID and stores it in the request context under an unexported key type, so no other package can collide with it.
+
+### Data model (goose migrations `db/migrations/001` to `007`)
+
+```mermaid
+erDiagram
+    users ||--o{ customers : has
+    users ||--o{ items : has
+    items ||--o{ item_variants : has
+    users ||--o{ bills : has
+    customers |o--o{ bills : "on (null = walk-in)"
+    bills ||--o{ bill_items : has
+    users ||--o{ khata_entries : has
+    customers ||--o{ khata_entries : has
+    bills |o--o{ khata_entries : "credit links to"
+```
+
+| Table | Key points |
+|---|---|
+| `users` | One row per shop. `email` unique, `password` is a bcrypt hash |
+| `customers` | `UNIQUE (user_id, phone)`. No balance column: `has_dues` is computed from the ledger in the queries |
+| `items` | `pricing_type` is `unit` (sold by count, has variants) or `loose` (sold by measure, has `rate` + `unit`, no variants). `UNIQUE (user_id, name)` |
+| `item_variants` | `label`, `price`, `is_default`. A partial unique index allows only one default per item |
+| `bills` | `amount` is the bill total (the dashboard sums it), `amount_paid` is what was paid at settle, `customer_id` is null for a walk-in, `customer_name` is a snapshot |
+| `bill_items` | Snapshot of each line: `name`, `quantity` (3 decimals, so 0.750 kg works), `unit_price`, `line_total`, plus `line_no` for the order the lines were added in. `item_id` and `variant_id` only record where a line came from and become null if that inventory row is deleted |
+| `khata_entries` | Append-only ledger. `type` is `credit` or `payment`; a credit links to its bill |
+
+Money is `NUMERIC(12,2)` in Postgres. Ids are random UUIDs (`gen_random_uuid()`). Migrations are never edited after they ship: the `bills` stub from 002 was extended by `ALTER TABLE` in 005, and 006 dropped the old hand-set `has_dues` column once the ledger could compute it.
+
+### Transactions
+
+Two writes touch several rows and must succeed or fail together:
+
+| Operation | Rows written |
+|---|---|
+| Create an item (`inventory_repository.go`) | the item, then each variant |
+| Settle a bill (`billing_repository.go`) | the bill, each line, then any khata entries |
+
+The pattern in both: `tx := db.BeginTxx(...)`, `defer tx.Rollback()` (undoes everything on any early return and does nothing after a commit), `qtx := sqlcgen.New(tx)` so every query runs inside the transaction, then `tx.Commit()`.
+
+### Billing and the khata rule
+
+The settle rules live in `billing_service.go`:
+
+1. Every line needs a name, a positive quantity and a non-negative price. The server recomputes each line total and the bill total, rounding to paise at every step; it never trusts totals from the app. It does accept the unit price, because the shopkeeper may edit any price.
+2. "Paying now" defaults to the bill total.
+3. A walk-in must pay exactly the total (409 otherwise): there is no ledger to owe against.
+4. For a customer, `khataEntriesFor(total, paid)` decides the ledger rows. It is a pure function with a unit test:
+   - paid in full → nothing (a settled bill has no place in the dues book)
+   - otherwise → a `credit` for the whole bill, linked to it, plus a `payment` for whatever was paid now
+5. The repository writes the bill, the lines and exactly those entries in one transaction. It makes no decisions of its own.
+
+The balance is always `sum(credit) − sum(payment)`, computed by `GetCustomerBalance` and inside the customer queries. Paying more than the total is allowed; the extra pays down older dues, and a negative balance means the shop owes the customer.
+
+**Ordering:** a bill's credit and payment are written in one transaction, so they share the same `created_at` (Postgres fixes `NOW()` for the whole transaction), and random UUIDs say nothing about order. `ListKhataEntries` therefore sorts by `created_at`, then credit before payment, then id. Bill lines sort by `line_no` for the same reason.
+
+### Money
+
+`float64` in Go and `double` in Dart, with `round2` (half away from zero, the same in both languages) at every boundary and a half-paisa tolerance (`moneyEqual`) instead of `==`. At real financial scale, integer paise or a decimal type would be the safer choice, because a float can't store 0.1 exactly.
+
+### Dashboard
+
+`GetTodaySales` sums today's bills where "today" is the shop's day in India: it finds midnight IST and keeps bills in `[midnight, midnight + 1 day)`. That works whatever time zone the database session uses (Neon and the Docker image use UTC) and keeps the `(user_id, created_at)` index usable. The 3 most recent bills come from the same index.
+
+### Scan (`internal/gemini`, `scan_service.go`, `scan_matcher.go`)
+
+```
+POST /v1/scan {image_base64, mime_type}
+  1. VALIDATE  handler: jpeg/png/webp, body ≤ 12 MB, decoded image ≤ 7 MB
+  2. DETECT    gemini.Client.Detect: image + short prompt + response schema → []Detection
+  3. GATE      confidence < 0.8 → dropped silently (the shopkeeper adds it by hand)
+  4. MATCH     MatchDetections: pure function against this shop's unit items
+  5. RESPOND   matches (full inventory cards at their default variant) + unmatched labels
+```
+
+- The Gemini client sits behind a one-method interface, so tests swap in a fake server or a stub.
+- The response schema forces Gemini to answer with a JSON array, so no text scraping is needed.
+- Matching is by **brand words first**, because a test run showed Gemini's `name` field is unreliable; name words are only a fallback. The most shared words win, and ties go alphabetically, so the same input always gives the same output. Text is normalised ("Lay's" matches "Lays", "Parle-G" matches "Parle G").
+- Failures degrade politely: one quick retry on a 429, then 429 "try again in a minute"; a 30 s timeout gives 504; anything else gives 502. Without a key the server still starts and only scan answers 502.
+- Scans are never stored. Only the settled bill is.
+- The free tier allows about 10 requests a minute and 250 a day per Google Cloud project, shared by every shop.
+
+### Status codes used
+
+| Code | When |
+|---|---|
+| 400 | Bad JSON, missing fields, bad UUID, broken business shape (for example a unit item without a default), duplicate customer phone |
+| 401 | Missing or invalid token, wrong password |
+| 403 | Wrong access code at register |
+| 404 | Not found, or belongs to another shop (the two look the same on purpose) |
+| 409 | Business conflict: email taken, customer has dues, walk-in paying short, second default variant, duplicate item name, variant on a loose item |
+| 429 / 502 / 504 | Scan: Gemini quota, Gemini failure, Gemini timeout |
+
+---
+
+## 3. Running it (`docker-compose.yml`)
+
+```mermaid
+flowchart LR
+    db[("db<br/>postgres:16-alpine<br/>127.0.0.1:5433")] -- healthy --> migrate["migrate<br/>goose up, then exits"]
+    migrate -- "completed successfully" --> api["api<br/>Go server :8080"]
+    api --> db
+```
+
+- One image (`backend/Dockerfile`) holds both the `api` binary and `goose`. The build stage compiles both with CGO off; the runtime stage is Alpine with CA certificates, running as a non-root user.
+- Secrets come from `backend/.env` (gitignored). Compose overrides `DATABASE_URL` so the API reaches the `db` container.
+- Postgres data lives in the `pgdata` volume. `docker compose down -v` deletes it.
+- The Flutter app runs outside Docker: `localhost:8080` from the iOS simulator, `10.0.2.2:8080` from the Android emulator, the computer's Wi-Fi IP from a real phone (`--dart-define=API_BASE_URL=...`).
+
+---
+
+## 4. Flutter app (`app/`)
+
+### Feature-first clean architecture
 
 ```
 lib/
-├── main.dart                          ← global BlocProviders + runApp
-├── app.dart                           ← MaterialApp.router + GoRouter init
-│
+├── main.dart                    preserve native splash → setupDependencies() → runApp
 ├── core/
-│   ├── constants/
-│   │   ├── api_constants.dart         ← base URL + all endpoint paths
-│   │   └── app_constants.dart
-│   ├── di/
-│   │   └── injection.dart             ← GetIt: all blocs, repos, datasources
-│   ├── errors/
-│   │   ├── failures.dart              ← ServerFailure, NetworkFailure, AuthFailure
-│   │   └── exceptions.dart
-│   ├── network/
-│   │   ├── dio_client.dart            ← Dio singleton
-│   │   └── interceptors/
-│   │       ├── auth_interceptor.dart  ← attach JWT to every request
-│   │       └── error_interceptor.dart ← 401 → logout, 5xx → Failure
-│   ├── router/
-│   │   └── app_router.dart            ← GoRouter config + redirect guard
-│   ├── storage/
-│   │   └── secure_storage.dart        ← flutter_secure_storage wrapper
-│   ├── theme/
-│   └── widgets/                       ← shared: AppButton, AppTextField, etc.
-│
+│   ├── constants/               AppConstants (JWT key, backend address)
+│   ├── di/injection.dart        GetIt: every datasource, repository, bloc, router
+│   ├── network/                 DioClient (JWT + 401 handling), ApiException, error mapping
+│   ├── storage/                 SecureStorageService (JWT + user JSON)
+│   ├── router/app_router.dart   GoRouter, redirect guard, StatefulShellRoute
+│   ├── navigation/              AppRoutes (every path) + NavigationCubit (every navigation)
+│   ├── shell/                   floating glass bottom bar, centre scan button, settings gear
+│   ├── theme/                   design tokens (violet #7C3AED) and ThemeData
+│   └── widgets/                 snackbar, confirm dialog, empty state, skeletons
 └── features/
-    ├── auth/
-    ├── dashboard/
-    ├── inventory/
-    ├── billing/
-    ├── customers/
-    └── settings/
+    ├── auth/  dashboard/  customers/  inventory/  bills/  khata/  settings/
 ```
 
-### Inside every feature
+Inside each feature:
 
 ```
-feature_name/
-├── data/
-│   ├── models/             ← freezed DTOs (fromJson / toJson)
-│   ├── datasources/        ← RemoteDatasource: Dio calls, returns models
-│   └── repositories/       ← RepositoryImpl: maps models → entities, handles errors
-├── domain/
-│   ├── entities/           ← pure Dart, no serialisation
-│   └── repositories/       ← abstract class (the contract BLoC depends on)
-└── presentation/
-    ├── bloc/
-    │   ├── feature_bloc.dart
-    │   ├── feature_event.dart
-    │   └── feature_state.dart
-    ├── pages/
-    └── widgets/
+feature/
+├── domain/          entities (plain Dart), abstract repository, pure maths (bill_math, khata_math)
+├── data/            models (fromJson), datasources (mock + remote), repository implementation
+└── presentation/    bloc (events, state, bloc) and pages
 ```
 
-### State management — Pure BLoC
+### State: one state class per bloc
 
-Explicit event classes, explicit state classes. No Cubits. State transitions are traceable and predictable.
+Each bloc has one state class with a `status` enum and `copyWith` (plus `clear...` flags), not a family of subclasses. Events are plain triggers. Derived values are computed in the bloc and emitted together with their inputs, so the UI never sees a half-updated state: the customer list filtered by the search index, the khata running balances, the bill totals.
 
-```dart
-// What happened
-class LoginRequested extends AuthEvent {
-  final String email;
-  final String password;
-}
+### Dependency injection
 
-// What the UI renders
-class AuthSuccess extends AuthState {
-  final User user;
-}
-```
+`injection.dart` registers singletons in order: secure storage → `DioClient` → datasources → repositories → blocs → router → `NavigationCubit`. Each datasource is registered against its abstract type, and every feature keeps both a mock and a real version in the code: switching is commenting one line. Each feature was built against its mock first, and the Go backend was then written to match that exact contract.
 
-States use a single-class `copyWith` pattern.
+### Networking
 
-### Navigation — GoRouter
+One `DioClient` for the whole app. A request interceptor adds `Authorization: Bearer <token>` from secure storage. If a request that carried a token comes back 401, `onUnauthorized` dispatches `LogoutRequested` to the AuthBloc, which clears storage; the router's redirect then sends the user to the welcome screen. Login and register 401s don't trigger this, because they carry no token. Remote datasources turn `DioException` into `ApiException`, keeping the server's `error` message when there is one so pages can show it inline.
 
-Two distinct responsibilities, handled separately:
+The backend address is `AppConstants.baseUrl`: `--dart-define=API_BASE_URL` if given, otherwise `10.0.2.2:8080` on Android and `localhost:8080` everywhere else.
 
-- **Redirect guard** (declarative) — if no JWT, any `/home/...` redirects to `/login`. If JWT exists, `/login` and `/register` redirect to `/home/dashboard`. Purely reactive to AuthBloc state.
-- **NavigationCubit** (imperative) — all intentional navigation after user actions goes through a central NavigationCubit. Pages never call `context.go()` directly.
+### Navigation
 
-### Routes
+- **Redirect guard** (declarative): driven by the AuthBloc stream. No token → only splash, welcome, login and register are reachable; logged in → the auth pages redirect to the dashboard.
+- **Shell:** `StatefulShellRoute.indexedStack`, so each tab keeps its own back stack: Home, Bills, Inventory, Customers. The centre button opens a new bill in scan mode; the gear opens Settings.
+- **NavigationCubit** (imperative): pages never call `context.go` or `context.push` themselves; they call cubit methods, and every path lives in `AppRoutes`.
 
-```
-/                           SplashPage
-/login                      LoginPage
-/register                   RegisterPage
-/home                       MainShell (StatefulShellRoute + bottom nav)
-  /home/dashboard           DashboardPage
-  /home/inventory           InventoryPage
-  /home/inventory/add       AddEditItemPage
-  /home/inventory/:id       AddEditItemPage (edit mode)
-  /home/bills               BillsPage
-  /home/bills/scan          ScanPage
-  /home/bills/history/:id   BillDetailPage
-  /home/customers           CustomersPage
-  /home/customers/add       AddCustomerPage
-  /home/customers/:id       CustomerDetailPage
-  /home/settings            SettingsPage
-```
+Main routes: `/home/dashboard`, `/home/bills`, `/home/bills/new` (`?scan=1` starts with the camera), `/home/bills/new/settle`, `/home/inventory` (plus `/add`, `/:id`, `/:id/edit`), `/home/customers` (plus `/add`, `/:id`, `/:id/edit`, `/:id/khata`), `/settings`, `/settings/change-password`.
 
-Bottom nav: Home | Bills | [Scan — centre floating] | Customers | Settings
+### Auth on a cold start
 
-### Dependency Injection — GetIt
+The JWT and a JSON copy of the user are stored with flutter_secure_storage (encrypted shared preferences on Android). On launch, `AppStarted` restores both **without a network call**, so the app opens even when the server is down and the dashboard greeting has a name on the first frame. A dead token is caught by the first protected request (401 → logout). Settings fetches `/v1/me` fresh when it opens.
 
-All dependencies registered in `core/di/injection.dart`. Adding a feature never requires touching `main.dart`. Mock-to-real migration for any datasource is one line changed in `injection.dart`.
+### Billing in the app
+
+- One `BillBuilderBloc` holds the draft bill for the whole app, so the scan button and the Bills tab work on the same draft.
+- Draft lines are a sealed class: a unit line (swipe between variants; a typed price overrides until the next swipe), a loose line (quantity × rate) and a free-typed line. Each one turns into the flat `{item_id?, variant_id?, name, quantity, unit_price}` shape the API takes.
+- `bill_math.dart` mirrors the server's rounding so the live total matches what the server will store. The server's figures stay the source of truth.
+- Variant lookups use plain loops, not `firstWhere(orElse: ...)`: lists parsed from JSON are really `List<ItemVariantModel>`, and Dart's covariant generics make an `orElse` closure typed for the parent class throw a TypeError at runtime.
+
+### Khata in the app
+
+`KhataBloc` has three separate statuses: loading the ledger, recording a payment (with inline errors in the sheet) and loading a bill's items for the sheet behind a credit row. `khata_math.runningBalances` walks the oldest-first entries from the server; the page then shows them newest first. After a payment the page asks the CustomersBloc to reload, so `has_dues` updates on the Customers tab.
+
+### Customer and item search
+
+Fully in the app (no search endpoint yet). `CustomerSearchIndex` splits every name into lowercase words and keeps a sorted list of (word, id) pairs, an inverted index. A query prefix `p` uses binary search (`lowerBound`) twice to find the range `[p, p')`, where `p'` is `p` with its last character moved up by one, so every word starting with `p` falls inside the range. That finds "Suresh Sen" for "sen". Multi-word queries must match every word. Inventory reuses the same approach.
 
 ---
 
-## Backend (`/backend`)
+## 5. Testing
 
-### Pattern: Layered Clean Architecture
+| What | Where |
+|---|---|
+| Gemini client (fake HTTP server: success, retry, timeouts, bad replies, missing key, no key in errors) | `internal/gemini/gemini_test.go` |
+| Scan handler (stub service: 401, 400s, size limit, error mapping) | `internal/handler/scan_handler_test.go` |
+| Matcher (gate, brand first, scoring, pool, labels) | `internal/service/scan_matcher_test.go` |
+| Khata rule of a bill | `internal/service/billing_service_test.go` |
+| Every endpoint, including error cases | `bruno/KhataDost API/` |
 
-```
-backend/
-├── cmd/api/
-│   └── main.go              ← server bootstrap, middleware chain, route registration
-├── internal/
-│   ├── handler/             ← HTTP: parse request → call service → write response
-│   ├── service/             ← Business logic: validation, hashing, JWT, orchestration
-│   ├── repository/          ← Data: sqlc-generated type-safe queries
-│   └── model/               ← Shared domain structs
-├── db/
-│   ├── migrations/          ← .up.sql / .down.sql pairs (golang-migrate)
-│   └── queries/             ← raw .sql files sqlc reads to generate Go
-├── go.mod
-└── .env
-```
-
-### Request flow
-
-```
-HTTP Request
-  → Chi router (CORS middleware, JWT middleware on protected routes)
-  → Handler      (decode JSON body → validate → call service)
-  → Service      (business logic → call repository)
-  → Repository   (sqlc query → PostgreSQL)
-  → Handler      (encode response JSON → write status)
-```
-
-### Database — PostgreSQL + sqlc
-
-Raw SQL lives in `db/queries/*.sql`. sqlc reads these and generates fully type-safe Go functions. No ORM — every query is explicit and reviewable.
-
-Migrations managed with golang-migrate. Each migration is a numbered `.up.sql` / `.down.sql` pair.
-
-### Auth — JWT + bcrypt
-
-- Passwords hashed with bcrypt before storage
-- JWTs signed with HS256 using a secret from `.env`
-- JWT middleware on all protected routes via Chi middleware chain
-- Registration gated by a single access code env var (`ACCESS_CODE`)
-
-### API endpoints
-
-```
-POST   /v1/register                     Public
-POST   /v1/login                        Public
-
-GET    /v1/shop                         🔒
-PUT    /v1/shop                         🔒
-
-GET    /v1/items                        🔒
-POST   /v1/items                        🔒
-PUT    /v1/items/:id                    🔒
-DELETE /v1/items/:id                    🔒
-
-GET    /v1/customers                    🔒
-POST   /v1/customers                    🔒
-GET    /v1/customers/:id                🔒
-POST   /v1/customers/:id/payment        🔒
-
-POST   /v1/scan                         🔒  ← image → Gemini → matched items
-POST   /v1/bills                        🔒
-GET    /v1/bills                        🔒
-GET    /v1/bills/:id                    🔒
-
-GET    /v1/analytics/summary            🔒
-```
+There are no Flutter tests in the repo yet, and the other backend features have no Go tests.
 
 ---
 
-## End-to-End Data Flow (Scan Billing)
+## 6. Known limits
 
-```
-1.  Shopkeeper taps scan → camera opens (ScanPage)
-2.  Image captured → ScanRequested event dispatched to BillingBloc
-3.  BillingBloc calls BillingRepository.scan(imageBytes)
-4.  RemoteDatasource sends POST /v1/scan with image
-5.  Handler receives image → calls BillingService.scan()
-6.  Service sends image to Gemini Vision API
-7.  Gemini returns detected item names
-8.  Service queries inventory: for each name, fuzzy match against shop's items
-9.  Returns: matched items (with DB price + stock) + unmatched items (name only)
-10. Handler writes JSON response
-11. BillingBloc receives ScanSuccess(items)
-12. UI renders review screen:
-      - Matched items → quantity editable
-      - Unmatched items → name + price editable, flagged as "Not in inventory"
-13. Shopkeeper edits, taps Proceed
-14. Customer selected (or walk-in)
-15. Payment type: Cash or Udhaar
-16. BillConfirmed event → POST /v1/bills
-17. Backend: saves bill, deducts stock, updates khata if udhaar
-18. BillingBloc emits BillSuccess → UI shows confirmation
-```
-
----
-
-## Key Decisions
-
-**Flutter-first development.** Each feature is built UI-first with a mocked datasource. The backend is then built to satisfy the exact contract the Flutter code already defines. No guesswork on API design.
-
-**One-line mock-to-real swap.** The only difference between mock and real is one registration line in `injection.dart`.
-
-**Unmatched items are first-class.** When Gemini detects something not in the shop's inventory, it doesn't fail or get silently dropped — it surfaces in the review screen as an editable card. The shopkeeper stays in control.
-
-**Cash or udhaar only.** No UPI or payment gateway integration. Keeps the billing flow fast and removes a significant surface area of complexity for a real-world demo.
-
-**Feature docs before code.** Every feature has a spec in `docs/features/` defining flows, BLoC events/states, API contracts, and file maps before any code is written.
+- Money is `float64` with careful rounding, not integer paise.
+- Search runs in the app over the full lists; fine for one shop's customers, but it needs a server search and pagination at scale.
+- One Gemini key and quota for every shop.
+- Setting a new default variant needs two calls (unset the old one first); a single call answers 409.
+- No refresh tokens: a token lasts 30 days, then the user logs in again.
+- No payment method on a bill (cash and UPI aren't told apart).
