@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -68,7 +69,13 @@ func (s *authService) Register(ctx context.Context, params RegisterParams) (Auth
 		Password: string(hashed),
 	})
 	if err != nil {
-		return AuthResult{}, ErrEmailAlreadyInUse
+		// Only a real duplicate email is the user's fault (409). Anything
+		// else (database down, bad data) is a server error, so don't tell
+		// the user their email is taken when it isn't.
+		if errors.Is(err, repository.ErrDuplicateEmail) {
+			return AuthResult{}, ErrEmailAlreadyInUse
+		}
+		return AuthResult{}, fmt.Errorf("Register: %w", err)
 	}
 
 	token, err := generateJWT(user.ID)
