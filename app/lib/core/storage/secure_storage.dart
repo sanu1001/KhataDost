@@ -8,9 +8,7 @@ class SecureStorageService {
 
   /// Key for the persisted user-profile snapshot (saved at login/register,
   /// read on cold start to hydrate AuthState.user).
-  /// Lives here instead of AppConstants because app_constants.dart is
-  /// skip-worktree'd (baseUrl LAN-IP guard) — an addition there could never
-  /// be committed.
+  /// Kept here, next to the only code that reads and writes it.
   static const _userJsonKey = 'auth_user_json';
 
   static const _androidOptions = AndroidOptions(
