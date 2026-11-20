@@ -1,2 +1,9 @@
 
 .cowork/
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
