@@ -21,6 +21,11 @@ var (
 	ErrDuplicateItemName = errors.New("an item with this name already exists")
 	ErrItemNotFound      = errors.New("item not found")
 	ErrVariantNotFound   = errors.New("variant not found")
+
+	// ErrDuplicateDefault: the item already has a default variant. Backed by
+	// the partial unique index idx_one_default_per_item (the only unique
+	// index on item_variants), so a 23505 there always means this.
+	ErrDuplicateDefault = errors.New("this item already has a default variant; unset it first")
 )
 
 // ── Domain structs (clean Go types — no database/sql or sqlc leaking out) ───
@@ -272,12 +277,15 @@ func (r *inventoryRepository) UpdateItem(
 //	sqlc: r.queries.DeleteItem(ctx, sqlcgen.DeleteItemParams{ID, UserID}) error
 //	Just wrap the error with %w.
 func (r *inventoryRepository) DeleteItem(ctx context.Context, id, userID uuid.UUID) error {
-	err := r.queries.DeleteItem(ctx, sqlcgen.DeleteItemParams{
+	rows, err := r.queries.DeleteItem(ctx, sqlcgen.DeleteItemParams{
 		ID:     id,
 		UserID: userID,
 	})
 	if err != nil {
 		return fmt.Errorf("DeleteItem: %w", err)
+	}
+	if rows == 0 {
+		return ErrItemNotFound // unknown id, or another shop's item
 	}
 	return nil
 }
@@ -303,6 +311,9 @@ func (r *inventoryRepository) CreateVariant(
 		Description: toNullString(description),
 	})
 	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, ErrDuplicateDefault
+		}
 		return nil, fmt.Errorf("CreateVariant: %w", err)
 	}
 	v := variantToDomain(row)
@@ -334,6 +345,9 @@ func (r *inventoryRepository) UpdateVariant(
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrVariantNotFound
 		}
+		if isUniqueViolation(err) {
+			return nil, ErrDuplicateDefault
+		}
 		return nil, fmt.Errorf("UpdateVariant: %w", err)
 	}
 	v := variantToDomain(row)
@@ -344,12 +358,15 @@ func (r *inventoryRepository) UpdateVariant(
 // Delete one variant, scoped by its id AND its parent item id (same reason as
 // UpdateVariant).
 func (r *inventoryRepository) DeleteVariant(ctx context.Context, itemID, variantID uuid.UUID) error {
-	err := r.queries.DeleteVariant(ctx, sqlcgen.DeleteVariantParams{
+	rows, err := r.queries.DeleteVariant(ctx, sqlcgen.DeleteVariantParams{
 		ID:     variantID,
 		ItemID: itemID,
 	})
 	if err != nil {
 		return fmt.Errorf("DeleteVariant: %w", err)
+	}
+	if rows == 0 {
+		return ErrVariantNotFound // unknown id, or a variant of another item
 	}
 	return nil
 }

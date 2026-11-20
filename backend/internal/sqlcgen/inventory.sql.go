@@ -91,7 +91,7 @@ func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) (I
 	return i, err
 }
 
-const deleteItem = `-- name: DeleteItem :exec
+const deleteItem = `-- name: DeleteItem :execrows
 DELETE FROM items
 WHERE id = $1 AND user_id = $2
 `
@@ -103,12 +103,17 @@ type DeleteItemParams struct {
 
 // Hard delete, scoped by id AND user_id. ON DELETE CASCADE drops the item's
 // variants automatically — no separate variant delete needed here.
-func (q *Queries) DeleteItem(ctx context.Context, arg DeleteItemParams) error {
-	_, err := q.db.ExecContext(ctx, deleteItem, arg.ID, arg.UserID)
-	return err
+// :execrows returns the number of deleted rows, so the repository can answer
+// 404 when nothing matched instead of a silent 204.
+func (q *Queries) DeleteItem(ctx context.Context, arg DeleteItemParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteItem, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const deleteVariant = `-- name: DeleteVariant :exec
+const deleteVariant = `-- name: DeleteVariant :execrows
 DELETE FROM item_variants
 WHERE id = $1 AND item_id = $2
 `
@@ -119,9 +124,13 @@ type DeleteVariantParams struct {
 }
 
 // Scoped by id AND item_id, for the same reason as UpdateVariant.
-func (q *Queries) DeleteVariant(ctx context.Context, arg DeleteVariantParams) error {
-	_, err := q.db.ExecContext(ctx, deleteVariant, arg.ID, arg.ItemID)
-	return err
+// :execrows → 0 rows means "no such variant on this item" → 404.
+func (q *Queries) DeleteVariant(ctx context.Context, arg DeleteVariantParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteVariant, arg.ID, arg.ItemID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getItemByID = `-- name: GetItemByID :one

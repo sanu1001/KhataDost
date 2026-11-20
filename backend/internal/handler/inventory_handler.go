@@ -330,7 +330,8 @@ func writeInventoryError(w http.ResponseWriter, err error, fallback string) {
 		writeError(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, service.ErrLooseItemNoVariants):
 		writeError(w, err.Error(), http.StatusConflict)
-	case errors.Is(err, repository.ErrDuplicateItemName):
+	case errors.Is(err, repository.ErrDuplicateItemName),
+		errors.Is(err, repository.ErrDuplicateDefault):
 		writeError(w, err.Error(), http.StatusConflict)
 	case errors.Is(err, repository.ErrItemNotFound):
 		writeError(w, "item not found", http.StatusNotFound)

@@ -29,9 +29,11 @@ SET name = $3, rate = $4, unit = $5, updated_at = NOW()
 WHERE id = $1 AND user_id = $2
 RETURNING id, user_id, name, pricing_type, rate, unit, created_at, updated_at;
 
--- name: DeleteItem :exec
+-- name: DeleteItem :execrows
 -- Hard delete, scoped by id AND user_id. ON DELETE CASCADE drops the item's
 -- variants automatically — no separate variant delete needed here.
+-- :execrows returns the number of deleted rows, so the repository can answer
+-- 404 when nothing matched instead of a silent 204.
 DELETE FROM items
 WHERE id = $1 AND user_id = $2;
 
@@ -56,8 +58,9 @@ SET label = $3, price = $4, is_default = $5, description = $6, updated_at = NOW(
 WHERE id = $1 AND item_id = $2
 RETURNING id, item_id, label, price, is_default, description, created_at, updated_at;
 
--- name: DeleteVariant :exec
+-- name: DeleteVariant :execrows
 -- Scoped by id AND item_id, for the same reason as UpdateVariant.
+-- :execrows → 0 rows means "no such variant on this item" → 404.
 DELETE FROM item_variants
 WHERE id = $1 AND item_id = $2;
 
