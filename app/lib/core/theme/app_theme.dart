@@ -192,7 +192,7 @@ class AppTheme {
     ),
 
     // Card
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: AppColors.cardBg,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
@@ -227,7 +227,7 @@ class AppTheme {
     ),
 
     // Dialogs
-    dialogTheme: DialogTheme(
+    dialogTheme: DialogThemeData(
       backgroundColor: AppColors.cardBg,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
@@ -264,7 +264,7 @@ class AppTheme {
     ),
 
     // Bottom app bar (shell)
-    bottomAppBarTheme: const BottomAppBarTheme(
+    bottomAppBarTheme: const BottomAppBarThemeData(
       color: AppColors.cardBg,
       surfaceTintColor: Colors.transparent,
       elevation: 8,
