@@ -1,0 +1,71 @@
+# KhataDost local stack: Postgres + the Go API, for OrbStack or Docker Desktop.
+#
+#   cp backend/.env.example backend/.env    # fill in JWT_SECRET, ACCESS_CODE, GEMINI_API_KEY
+#   docker compose up --build               # Postgres → migrations → API on :8080
+#
+# The Flutter app runs outside Docker and calls http://localhost:8080
+# (iOS simulator) or http://10.0.2.2:8080 (Android emulator). See README.md.
+name: khatadost
+
+x-backend: &backend
+  build: ./backend
+  image: khatadost-backend:dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: khatadost
+      # Local development only. Override with POSTGRES_PASSWORD in a root .env.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-khatadost}
+      POSTGRES_DB: khatadost
+    ports:
+      # 127.0.0.1 only: reachable from your Mac (pgAdmin, `go run`), not from
+      # the network. 5433 so it doesn't clash with PingMate or a local 5432.
+      - "127.0.0.1:${DB_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U khatadost -d khatadost"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # One-off job: apply every pending migration with goose, then exit.
+  migrate:
+    <<: *backend
+    command: ["goose", "up"]
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://khatadost:${POSTGRES_PASSWORD:-khatadost}@db:5432/khatadost?sslmode=disable
+      GOOSE_MIGRATION_DIR: db/migrations
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *backend
+    restart: unless-stopped
+    # JWT_SECRET, ACCESS_CODE and GEMINI_API_KEY come from backend/.env.
+    # The values under `environment` win over that file, so DATABASE_URL
+    # points at the db container instead of your Mac.
+    env_file: backend/.env
+    environment:
+      DATABASE_URL: postgres://khatadost:${POSTGRES_PASSWORD:-khatadost}@db:5432/khatadost?sslmode=disable
+      PORT: "8080"
+    ports:
+      # All interfaces, so a real phone on the same Wi-Fi can reach it too.
+      - "${API_HOST_PORT:-8080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  pgdata:

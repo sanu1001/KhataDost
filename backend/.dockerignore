@@ -1,0 +1,8 @@
+# Never copy secrets or local build output into the image.
+.env
+.env.*
+!.env.example
+bin/
+tmp/
+*.exe
+*.out
