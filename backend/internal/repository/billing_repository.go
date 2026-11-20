@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"time"
 
@@ -37,6 +36,16 @@ type BillLineInput struct {
 	LineTotal float64
 }
 
+// KhataEntryInput is one khata row the settlement transaction must write.
+// The SERVICE decides which rows a bill produces (khataEntriesFor in
+// billing_service.go); the repository only writes them inside the same
+// transaction as the bill. LinkToBill = set bill_id to the bill being created.
+type KhataEntryInput struct {
+	Type       string // 'credit' | 'payment'
+	Amount     float64
+	LinkToBill bool
+}
+
 type BillItem struct {
 	ID        string
 	ItemID    *string // nil = miscellaneous
@@ -66,7 +75,7 @@ type BillWithItems struct {
 
 // ── Interface + unexported impl + constructor ───────────────────────────────
 type BillingRepository interface {
-	CreateBillWithItems(ctx context.Context, userID uuid.UUID, customerID *uuid.UUID, customerName string, total, amountPaid float64, lines []BillLineInput) (*BillWithItems, error)
+	CreateBillWithItems(ctx context.Context, userID uuid.UUID, customerID *uuid.UUID, customerName string, total, amountPaid float64, lines []BillLineInput, khataEntries []KhataEntryInput) (*BillWithItems, error)
 	ListBills(ctx context.Context, userID uuid.UUID) ([]*Bill, error)
 	GetBillByID(ctx context.Context, id, userID uuid.UUID) (*BillWithItems, error)
 }
@@ -84,9 +93,10 @@ func NewBillingRepository(db *sqlx.DB) BillingRepository {
 }
 
 // ── CreateBillWithItems — THE settlement transaction ────────────────────────
-// Inserts the bill header, then N lines, then (Phase 2) khata entries if the
-// customer is on tab — ALL-OR-NOTHING. The service has already validated the
-// business rules before we get here; this method's only job is atomicity.
+// Inserts the bill header, then N lines, then whatever khata entries the
+// service decided on — ALL-OR-NOTHING. The service has already validated the
+// business rules and worked out the khata entries before we get here; this
+// method's only job is atomicity. It makes no business decisions.
 // Same BeginTxx + defer Rollback + New(tx) shape as inventory's CreateItemWithVariants.
 func (r *billingRepository) CreateBillWithItems(
 	ctx context.Context,
@@ -95,7 +105,13 @@ func (r *billingRepository) CreateBillWithItems(
 	customerName string,
 	total, amountPaid float64,
 	lines []BillLineInput,
+	khataEntries []KhataEntryInput,
 ) (*BillWithItems, error) {
+	if len(khataEntries) > 0 && customerID == nil {
+		// A walk-in has no ledger; the service never asks for this.
+		return nil, errors.New("CreateBillWithItems: khata entries need a customer")
+	}
+
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("CreateBillWithItems begin: %w", err)
@@ -136,44 +152,25 @@ func (r *billingRepository) CreateBillWithItems(
 		created = append(created, billItemToDomain(itemRow))
 	}
 
-	// 3. PHASE 2: Write khata entries if the customer is on tab.
-	//    Condition: customer bill (not walk-in) AND amount_paid != bill total.
-	//    A fully-paid cash bill writes nothing — a settled bill has no place
-	//    in the dues book (locked design decision from the Notion log).
-	//
-	//    'credit' entry  = bill total, linked to the bill (always, when on tab)
-	//    'payment' entry = amount_paid, no bill link (only if paid > 0)
-	//
-	//    Both entries share the transaction timestamp, and ids are random
-	//    UUIDv4, so ListKhataEntries breaks the tie on type: credit first.
-	if customerID != nil && math.Abs(amountPaid-total) >= 0.005 {
-		// 3a. Credit entry: the full bill total, linked to this bill.
+	// 3. Write the khata entries the service decided on (none for a walk-in
+	//    or a fully paid bill). They share the transaction timestamp, and ids
+	//    are random UUIDv4, so ListKhataEntries breaks the tie on type:
+	//    credit first.
+	for _, e := range khataEntries {
+		billID := uuid.NullUUID{Valid: false}
+		if e.LinkToBill {
+			billID = uuid.NullUUID{UUID: billRow.ID, Valid: true}
+		}
 		_, err = qtx.InsertKhataEntry(ctx, sqlcgen.InsertKhataEntryParams{
 			UserID:     userID,
 			CustomerID: *customerID,
-			Type:       "credit",
-			Amount:     floatToString(total),
-			BillID:     uuid.NullUUID{UUID: billRow.ID, Valid: true},
+			Type:       e.Type,
+			Amount:     floatToString(e.Amount),
+			BillID:     billID,
 			Note:       sql.NullString{Valid: false},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("CreateBillWithItems khata credit: %w", err)
-		}
-
-		// 3b. Payment entry: only if the customer paid anything upfront.
-		//     (amountPaid == 0 means full credit — no payment entry at all.)
-		if amountPaid > 0 {
-			_, err = qtx.InsertKhataEntry(ctx, sqlcgen.InsertKhataEntryParams{
-				UserID:     userID,
-				CustomerID: *customerID,
-				Type:       "payment",
-				Amount:     floatToString(amountPaid),
-				BillID:     uuid.NullUUID{Valid: false},
-				Note:       sql.NullString{Valid: false},
-			})
-			if err != nil {
-				return nil, fmt.Errorf("CreateBillWithItems khata payment: %w", err)
-			}
+			return nil, fmt.Errorf("CreateBillWithItems khata %s: %w", e.Type, err)
 		}
 	}
 

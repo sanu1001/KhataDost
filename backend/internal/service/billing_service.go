@@ -122,7 +122,8 @@ func (s *billingService) Create(
 		if !moneyEqual(paid, total) {
 			return nil, ErrWalkInMustPayFull
 		}
-		return s.repo.CreateBillWithItems(ctx, userID, nil, walkInName, total, paid, lines)
+		// No khata entries: a walk-in has no ledger.
+		return s.repo.CreateBillWithItems(ctx, userID, nil, walkInName, total, paid, lines, nil)
 	}
 
 	// Customer bill: prove ownership + snapshot the name. GetByID is scoped
@@ -132,16 +133,35 @@ func (s *billingService) Create(
 		return nil, err
 	}
 
-	// Khata writes (computed here, WRITTEN in Phase 2 inside the same
-	// repository transaction, once migration 006 creates khata_entries):
-	//   paid == total → fully-settled sale: NO khata entries — a paid bill
-	//                   writes nothing to the dues book.
-	//   paid != total → 'credit' entry = total (linked to this bill), and
-	//                   if paid > 0, a 'payment' entry = paid.
-	//   new_balance = old_balance + total − paid, always DERIVED from
-	//   entries, never stored. paid > total is legal: the surplus pays down
-	//   old dues (owes 500, bill 250, pays 300 → 450).
-	return s.repo.CreateBillWithItems(ctx, userID, p.CustomerID, customer.Name, total, paid, lines)
+	// Decide the khata writes HERE (business rule), let the repository write
+	// them inside the settlement transaction (atomicity).
+	entries := khataEntriesFor(total, paid)
+	return s.repo.CreateBillWithItems(ctx, userID, p.CustomerID, customer.Name, total, paid, lines, entries)
+}
+
+// khataEntriesFor decides what a customer's bill writes to their khata.
+// Pure function (no I/O), unit-tested in billing_service_test.go.
+//
+//	paid == total → nothing: a fully settled sale has no place in the dues book.
+//	paid != total → a 'credit' for the WHOLE bill (linked to it), plus a
+//	                'payment' for what was paid now, if anything.
+//
+// The balance stays DERIVED from entries, never stored:
+// new_balance = old_balance + total − paid. paid > total is legal: the
+// surplus pays down old dues (owes 500, bill 250, pays 300 → 450).
+// "Equal" uses moneyEqual, the same half-paisa tolerance as the walk-in rule,
+// so the whole service shares one definition of "paid in full".
+func khataEntriesFor(total, paid float64) []repository.KhataEntryInput {
+	if moneyEqual(paid, total) {
+		return nil
+	}
+	entries := []repository.KhataEntryInput{
+		{Type: "credit", Amount: total, LinkToBill: true},
+	}
+	if paid > 0 {
+		entries = append(entries, repository.KhataEntryInput{Type: "payment", Amount: paid})
+	}
+	return entries
 }
 
 // ── List / Get — pure pass-throughs (no business rules on read) ─────────────
