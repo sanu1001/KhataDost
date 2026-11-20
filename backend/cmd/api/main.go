@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 	"github.com/sanu1001/KhataDost/backend/internal/db"
 	"github.com/sanu1001/KhataDost/backend/internal/gemini"
@@ -28,6 +33,19 @@ func main() {
 			log.Fatalf("could not read .env: %v", err)
 		}
 		log.Println("no .env file, reading settings from the environment only")
+	}
+
+	// Fail fast on settings the server can't run without, instead of
+	// failing later on the first request (an empty JWT_SECRET would even
+	// sign tokens with an empty key).
+	mustEnv("DATABASE_URL")
+	mustEnv("JWT_SECRET")
+	if os.Getenv("ACCESS_CODE") == "" {
+		log.Println("WARNING: ACCESS_CODE not set: nobody can register until it is")
+	}
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
 	database := db.Connect(os.Getenv("DATABASE_URL"))
@@ -70,16 +88,21 @@ func main() {
 	khataHandler := handler.NewKhataHandler(khataService)
 
 	// scan chain (reuses the frozen inventory repo read-only: the match pool).
-	// The Gemini key lives in .env ONLY — it never ships in the Flutter app.
+	// The Gemini key lives in the server environment (.env or docker-compose)
+	// ONLY — it never ships in the Flutter app.
 	geminiKey := os.Getenv("GEMINI_API_KEY")
 	if geminiKey == "" {
-		log.Println("WARNING: GEMINI_API_KEY not set — /v1/scan will return 502 until it is added to .env")
+		log.Println("WARNING: GEMINI_API_KEY not set: /v1/scan will return 502 until it is set")
 	}
 	geminiClient := gemini.NewClient(geminiKey)
 	scanService := service.NewScanService(geminiClient, inventoryRepo)
 	scanHandler := handler.NewScanHandler(scanService)
 
 	r := chi.NewRouter()
+	// One log line per request (method, path, status, size, duration) and a
+	// 500 instead of a dropped connection if a handler ever panics.
+	r.Use(chimw.Logger)
+	r.Use(chimw.Recoverer)
 
 	r.Get("/health", func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -120,7 +143,42 @@ func main() {
 		r.Post("/v1/scan", scanHandler.Scan)
 	})
 
-	port := os.Getenv("PORT")
-	log.Printf("Server starting on port %s...", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	// Timeouts so a slow or stuck client can't hold a connection forever.
+	// Read and write allow 60 s: a scan photo can be ~10 MB from a phone on a
+	// slow network, and /v1/scan waits up to 30 s for Gemini.
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
+	// Graceful shutdown: on Ctrl+C or `docker compose down` (SIGTERM), stop
+	// accepting new requests and give the ones in flight 10 s to finish.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		log.Printf("Server starting on port %s...", port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("shutting down...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("shutdown did not finish cleanly: %v", err)
+	}
+}
+
+// mustEnv stops the server at startup if a required setting is missing.
+func mustEnv(key string) {
+	if os.Getenv(key) == "" {
+		log.Fatalf("%s is not set (put it in backend/.env, or in the environment)", key)
+	}
 }
