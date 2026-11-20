@@ -205,11 +205,15 @@ func (c *httpClient) Detect(ctx context.Context, imageBase64, mimeType string) (
 // doOnce performs a single HTTP round-trip. On 429 it also reports the parsed
 // Retry-After (0 if absent/garbage) so the caller can size its backoff.
 func (c *httpClient) doOnce(ctx context.Context, body []byte, mimeType string) ([]Detection, time.Duration, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"?key="+c.apiKey, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, 0, fmt.Errorf("Detect request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// The key goes in a header, not in "?key=" on the URL: Go's HTTP errors
+	// quote the full URL, so a key in the query string would end up in any
+	// error message or log line that includes the error.
+	req.Header.Set("x-goog-api-key", c.apiKey)
 
 	resp, err := c.hc.Do(req)
 	if err != nil {

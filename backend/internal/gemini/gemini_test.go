@@ -46,10 +46,11 @@ func testClient(srvURL string) *httpClient {
 }
 
 func TestDetect_HappyPathAndRequestShape(t *testing.T) {
-	var gotPath, gotQuery, gotBody string
+	var gotPath, gotQuery, gotKey, gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
+		gotKey = r.Header.Get("x-goog-api-key")
 		raw, _ := io.ReadAll(r.Body)
 		gotBody = string(raw)
 		fmt.Fprint(w, okBody(t, `[{"name":"Crisps","brand":"Lays","variant":"Magic Masala","quantity":2,"confidence":0.9}]`))
@@ -64,9 +65,10 @@ func TestDetect_HappyPathAndRequestShape(t *testing.T) {
 		t.Fatalf("detections parsed wrong: %+v", dets)
 	}
 
-	// Request shape: key in query, image + prompt + schema in body (§3).
-	if gotPath != "/" || !strings.Contains(gotQuery, "key=test-key") {
-		t.Fatalf("want ?key=… on the locked URL, got %s?%s", gotPath, gotQuery)
+	// Request shape: key in the x-goog-api-key header (never in the URL),
+	// image + prompt + schema in body (§3).
+	if gotPath != "/" || gotQuery != "" || gotKey != "test-key" {
+		t.Fatalf("want the key in the header and a bare URL, got %s?%s with header %q", gotPath, gotQuery, gotKey)
 	}
 	for _, want := range []string{
 		`"inline_data"`, `"mime_type":"image/jpeg"`, `"data":"aW1hZ2U="`,
@@ -177,5 +179,21 @@ func TestDetect_NotConfigured(t *testing.T) {
 	_, err := c.Detect(context.Background(), "aW1hZ2U=", "image/jpeg")
 	if !errors.Is(err, ErrNotConfigured) {
 		t.Fatalf("want ErrNotConfigured with empty key, got %v", err)
+	}
+}
+
+// A transport failure must not leak the key: Go's *url.Error quotes the
+// request URL, which is why the key travels in a header.
+func TestDetect_ErrorDoesNotLeakKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close() // nothing listens any more → connection refused
+
+	_, err := testClient(url).Detect(context.Background(), "aW1hZ2U=", "image/jpeg")
+	if err == nil {
+		t.Fatal("want an error from a closed server")
+	}
+	if strings.Contains(err.Error(), "test-key") {
+		t.Fatalf("error leaks the API key: %v", err)
 	}
 }
